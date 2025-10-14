@@ -1,6 +1,6 @@
 
   {
-      "name": "vendaspro",
+      "name": "Portal de Gerenciamento de Conteúdo",
       "version": "0.1.0",
       "private": true,
       "dependencies": {

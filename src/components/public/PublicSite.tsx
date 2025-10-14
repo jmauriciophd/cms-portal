@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
@@ -11,7 +12,8 @@ import {
   Tag,
   ArrowRight,
   Menu as MenuIcon,
-  X
+  X,
+  LogIn
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 
@@ -46,6 +48,7 @@ interface MenuItem {
 }
 
 export function PublicSite() {
+  const navigate = useNavigate();
   const [articles, setArticles] = useState<Article[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -325,7 +328,7 @@ export function PublicSite() {
               )}
             </Button>
 
-            {/* Desktop Stats */}
+            {/* Desktop Stats & Login */}
             <div className="hidden md:flex items-center gap-6 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4" />
@@ -335,6 +338,15 @@ export function PublicSite() {
                 <FileText className="w-4 h-4" />
                 <span>{pages.length} Páginas</span>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/login')}
+                className="ml-2"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Login
+              </Button>
             </div>
           </div>
         </div>
@@ -378,8 +390,18 @@ export function PublicSite() {
       {/* Footer */}
       <footer className="bg-white border-t mt-16">
         <div className="container mx-auto px-4 py-8">
-          <div className="text-center text-gray-600">
-            <p>&copy; {new Date().getFullYear()} Portal CMS. Todos os direitos reservados.</p>
+          <div className="flex flex-col items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/login')}
+              className="mb-2"
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              Acessar Painel Administrativo
+            </Button>
+            <div className="text-center text-gray-600">
+              <p>&copy; {new Date().getFullYear()} Portal CMS. Todos os direitos reservados.</p>
+            </div>
           </div>
         </div>
       </footer>

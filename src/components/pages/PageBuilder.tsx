@@ -4,7 +4,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Card, CardContent } from '../ui/card';
-import { ArrowLeft, Save, Eye, Plus, Trash, GripVertical, Type, Image as ImageIcon, Layout, Box } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Plus, Trash, GripVertical, Type, Image as ImageIcon, Layout, Box, Edit } from 'lucide-react';
 import { Switch } from '../ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner@2.0.3';

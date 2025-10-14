@@ -194,7 +194,7 @@ export function PublicSite() {
               >
                 <CardHeader>
                   <div className="flex gap-2 mb-2 flex-wrap">
-                    {article.categories.map(cat => (
+                    {article.categories?.map(cat => (
                       <Badge key={cat} variant="secondary" className="text-xs">
                         {cat}
                       </Badge>
@@ -240,7 +240,7 @@ export function PublicSite() {
         <article className="bg-white rounded-xl shadow-sm p-8">
           <div className="mb-6">
             <div className="flex gap-2 mb-4 flex-wrap">
-              {selectedArticle.categories.map(cat => (
+              {selectedArticle.categories?.map(cat => (
                 <Badge key={cat} className="text-sm">
                   <Tag className="w-3 h-3 mr-1" />
                   {cat}

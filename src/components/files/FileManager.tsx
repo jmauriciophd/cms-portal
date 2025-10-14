@@ -550,6 +550,12 @@ export function FileManager() {
                     <DropdownMenuContent>
                       {item.type === 'file' && (
                         <>
+                          {item.url && (
+                            <DropdownMenuItem onClick={() => window.open(item.url, '_blank')}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Abrir em Nova Aba
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => handleDownload(item)}>
                             <Download className="w-4 h-4 mr-2" />
                             Download
@@ -592,9 +598,22 @@ export function FileManager() {
                 </div>
               </div>
               <div>
-                <p className="text-sm truncate mb-1" title={item.name}>
-                  {item.name}
-                </p>
+                {item.type === 'file' && item.url ? (
+                  <a 
+                    href={item.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm truncate mb-1 text-indigo-600 hover:underline block"
+                    title={`Abrir ${item.name} em nova aba`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {item.name}
+                  </a>
+                ) : (
+                  <p className="text-sm truncate mb-1" title={item.name}>
+                    {item.name}
+                  </p>
+                )}
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">
                     {item.type === 'folder' ? 'Pasta' : formatFileSize(item.size)}

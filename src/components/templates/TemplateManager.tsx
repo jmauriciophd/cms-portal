@@ -429,135 +429,169 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Templates</h2>
-          <p className="text-gray-600">Gerencie templates para páginas e artigos</p>
-        </div>
-        <div className="flex gap-2">
-          <label>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportTemplate}
-              className="hidden"
-            />
-            <Button variant="outline" asChild>
-              <span>
-                <Upload className="w-4 h-4 mr-2" />
-                Importar
-              </span>
-            </Button>
-          </label>
-          <Button onClick={() => setShowNewDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Template
-          </Button>
-        </div>
-      </div>
+    <div className={onSelectTemplate ? "" : "p-6"}>
+      {!onSelectTemplate && (
+        <>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">Templates</h2>
+              <p className="text-gray-600">Gerencie templates para páginas e artigos</p>
+            </div>
+            <div className="flex gap-2">
+              <label>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportTemplate}
+                  className="hidden"
+                />
+                <Button variant="outline" asChild>
+                  <span>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Importar
+                  </span>
+                </Button>
+              </label>
+              <Button onClick={() => setShowNewDialog(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Template
+              </Button>
+            </div>
+          </div>
 
-      {/* Filter */}
-      {!type && (
-        <div className="flex gap-2 mb-6">
-          <Button
-            variant={selectedType === 'article' ? 'default' : 'outline'}
-            onClick={() => setSelectedType('article')}
-          >
-            Artigos
-          </Button>
-          <Button
-            variant={selectedType === 'page' ? 'default' : 'outline'}
-            onClick={() => setSelectedType('page')}
-          >
-            Páginas
-          </Button>
-          <Button
-            variant={selectedType === 'custom' ? 'default' : 'outline'}
-            onClick={() => setSelectedType('custom')}
-          >
-            Personalizados
-          </Button>
+          {/* Filter */}
+          {!type && (
+            <div className="flex gap-2 mb-6">
+              <Button
+                variant={selectedType === 'article' ? 'default' : 'outline'}
+                onClick={() => setSelectedType('article')}
+              >
+                Artigos
+              </Button>
+              <Button
+                variant={selectedType === 'page' ? 'default' : 'outline'}
+                onClick={() => setSelectedType('page')}
+              >
+                Páginas
+              </Button>
+              <Button
+                variant={selectedType === 'custom' ? 'default' : 'outline'}
+                onClick={() => setSelectedType('custom')}
+              >
+                Personalizados
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {onSelectTemplate && (
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div className="flex gap-2">
+            <label>
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImportTemplate}
+                className="hidden"
+              />
+              <Button variant="outline" size="sm" asChild>
+                <span>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Importar
+                </span>
+              </Button>
+            </label>
+            <Button size="sm" onClick={() => setShowNewDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Template
+            </Button>
+          </div>
         </div>
       )}
 
       {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTemplates.map((template) => (
-          <Card key={template.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg mb-2">{template.name}</CardTitle>
-                  <p className="text-sm text-gray-600">{template.description}</p>
+      <ScrollArea className={onSelectTemplate ? "h-[500px] pr-4" : ""}>
+        <div className={`grid grid-cols-1 ${onSelectTemplate ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+          {filteredTemplates.map((template) => (
+            <Card key={template.id} className={`hover:shadow-lg transition-shadow ${onSelectTemplate ? 'hover:border-indigo-500' : ''}`}>
+              <CardHeader className={onSelectTemplate ? "p-4" : ""}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className={`${onSelectTemplate ? 'text-base' : 'text-lg'} mb-1 truncate`}>
+                      {template.name}
+                    </CardTitle>
+                    <p className={`text-xs text-gray-600 ${onSelectTemplate ? 'line-clamp-2' : ''}`}>
+                      {template.description}
+                    </p>
+                  </div>
+                  <Badge variant={template.type === 'article' ? 'default' : 'secondary'} className="shrink-0">
+                    {template.type === 'article' ? <Newspaper className="w-3 h-3" /> : <Layout className="w-3 h-3" />}
+                  </Badge>
                 </div>
-                <Badge variant={template.type === 'article' ? 'default' : 'secondary'}>
-                  {template.type === 'article' ? <Newspaper className="w-3 h-3 mr-1" /> : <Layout className="w-3 h-3 mr-1" />}
-                  {template.type}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Preview */}
-              <div className="bg-gray-100 rounded p-4 mb-4 h-32 flex items-center justify-center text-gray-400">
-                <FileText className="w-12 h-12" />
-              </div>
+              </CardHeader>
+              <CardContent className={onSelectTemplate ? "p-4 pt-0" : ""}>
+                {/* Preview */}
+                <div className={`bg-gray-100 rounded p-4 ${onSelectTemplate ? 'mb-3 h-24' : 'mb-4 h-32'} flex items-center justify-center text-gray-400`}>
+                  <FileText className={onSelectTemplate ? 'w-8 h-8' : 'w-12 h-12'} />
+                </div>
 
-              <div className="text-xs text-gray-500 mb-4">
-                <p>Criado: {new Date(template.createdAt).toLocaleDateString('pt-BR')}</p>
-                <p>{template.components.length} componente(s)</p>
-              </div>
+                <div className="text-xs text-gray-500 mb-3">
+                  <p>Criado: {new Date(template.createdAt).toLocaleDateString('pt-BR')}</p>
+                  <p>{template.components.length} componente(s)</p>
+                </div>
 
-              {/* Actions */}
-              <div className="flex gap-2">
-                {onSelectTemplate ? (
-                  <Button 
-                    onClick={() => onSelectTemplate(template)}
-                    size="sm"
-                    className="flex-1"
-                  >
-                    Usar Template
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
+                {/* Actions */}
+                <div className="flex gap-2">
+                  {onSelectTemplate ? (
+                    <Button 
+                      onClick={() => onSelectTemplate(template)}
                       size="sm"
-                      onClick={() => handleEditTemplate(template)}
-                      className="flex-1"
+                      className="w-full"
                     >
-                      <Edit className="w-3 h-3 mr-1" />
-                      Editar
+                      Usar Template
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDuplicateTemplate(template)}
-                    >
-                      <Copy className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleExportTemplate(template)}
-                    >
-                      <Download className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteTemplate(template.id)}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditTemplate(template)}
+                        className="flex-1"
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDuplicateTemplate(template)}
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExportTemplate(template)}
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteTemplate(template.id)}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
 
       {filteredTemplates.length === 0 && (
         <div className="text-center py-12 text-gray-500">

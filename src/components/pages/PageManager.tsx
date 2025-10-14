@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Search, Edit, Trash, Eye, Layout } from 'lucide-react';
+import { Plus, Search, Edit, Trash, Eye, Layout, ExternalLink, Copy } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { PageBuilder } from './PageBuilder';
@@ -98,6 +98,18 @@ export function PageManager({ currentUser }: PageManagerProps) {
     }
   };
 
+  const handlePreview = (slug: string) => {
+    // Abrir em nova aba
+    const url = `/${slug}`;
+    window.open(url, '_blank');
+  };
+
+  const handleCopyLink = (slug: string) => {
+    const url = `${window.location.origin}/${slug}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link copiado para a área de transferência!');
+  };
+
   const handleExportJSON = () => {
     const dataStr = JSON.stringify(pages, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -169,7 +181,18 @@ export function PageManager({ currentUser }: PageManagerProps) {
                   {page.status === 'published' ? 'Publicado' : 'Rascunho'}
                 </Badge>
               </div>
-              <CardDescription>/{page.slug}</CardDescription>
+              <CardDescription className="flex items-center gap-2">
+                <span className="text-indigo-600 hover:underline cursor-pointer" onClick={() => handlePreview(page.slug)}>
+                  /{page.slug}
+                </span>
+                <button 
+                  onClick={() => handleCopyLink(page.slug)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Copiar link"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
@@ -184,9 +207,10 @@ export function PageManager({ currentUser }: PageManagerProps) {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => toast.info(`URL: /${page.slug}`)}
+                  onClick={() => handlePreview(page.slug)}
+                  title="Visualizar página"
                 >
-                  <Eye className="w-4 h-4" />
+                  <ExternalLink className="w-4 h-4" />
                 </Button>
                 <Button 
                   variant="outline" 

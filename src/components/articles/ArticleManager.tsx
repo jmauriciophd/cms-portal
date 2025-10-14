@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { ArticleEditor } from './ArticleEditor';
+import { UnifiedEditor } from '../editor/UnifiedEditor';
 import { TemplateManager } from '../templates/TemplateManager';
 import { toast } from 'sonner@2.0.3';
 
@@ -24,6 +25,11 @@ interface Article {
   scheduledDate?: string;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   reviewNotes?: string;
+  components?: any[];
+  meta?: {
+    robots?: string;
+    description?: string;
+  };
 }
 
 interface ArticleManagerProps {
@@ -137,14 +143,36 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
 
   if (showEditor) {
     return (
-      <ArticleEditor
-        article={editingArticle}
-        onSave={handleSave}
+      <UnifiedEditor
+        type="article"
+        initialTitle={editingArticle?.title || ''}
+        initialSlug={editingArticle?.slug || ''}
+        initialComponents={editingArticle?.components || []}
+        initialStatus={editingArticle?.status as any || 'draft'}
+        initialScheduledDate={editingArticle?.scheduledDate}
+        initialMeta={editingArticle?.meta}
+        onSave={(data) => {
+          const updatedArticle: Article = {
+            ...editingArticle,
+            id: editingArticle?.id || Date.now().toString(),
+            title: data.title,
+            slug: data.slug,
+            components: data.components,
+            status: data.status as any,
+            scheduledDate: data.scheduledDate,
+            meta: data.meta,
+            content: JSON.stringify(data.components),
+            summary: data.meta?.description || editingArticle?.summary || '',
+            author: currentUser.name,
+            createdAt: editingArticle?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          handleSave(updatedArticle);
+        }}
         onCancel={() => {
           setShowEditor(false);
           setEditingArticle(null);
         }}
-        currentUser={currentUser}
       />
     );
   }

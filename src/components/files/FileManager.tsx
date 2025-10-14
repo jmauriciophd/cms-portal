@@ -53,6 +53,7 @@ interface FileItem {
   createdAt: string;
   modifiedAt?: string;
   parent?: string;
+  protected?: boolean;
 }
 
 // Allowed file types for security
@@ -92,36 +93,77 @@ export function FileManager() {
   const loadFiles = () => {
     const stored = localStorage.getItem('files');
     if (stored) {
-      setFiles(JSON.parse(stored));
+      const existingFiles = JSON.parse(stored);
+      // Ensure default protected folders exist
+      const protectedFolders = [
+        { name: 'Arquivos', path: '/Arquivos' },
+        { name: 'imagens', path: '/Arquivos/imagens' },
+        { name: 'paginas', path: '/Arquivos/paginas' },
+        { name: 'estaticos', path: '/Arquivos/estaticos' }
+      ];
+
+      let updated = false;
+      protectedFolders.forEach(folder => {
+        if (!existingFiles.some((f: FileItem) => f.path === folder.path)) {
+          existingFiles.push({
+            id: `protected-${Date.now()}-${Math.random()}`,
+            name: folder.name,
+            type: 'folder' as const,
+            path: folder.path,
+            parent: folder.path === '/Arquivos' ? '/' : '/Arquivos',
+            createdAt: new Date().toISOString(),
+            protected: true
+          });
+          updated = true;
+        }
+      });
+
+      if (updated) {
+        localStorage.setItem('files', JSON.stringify(existingFiles));
+      }
+      setFiles(existingFiles);
     } else {
-      const sampleFiles: FileItem[] = [
+      // Create default folder structure
+      const defaultFiles: FileItem[] = [
         {
-          id: '1',
-          name: 'Imagens',
+          id: 'root-arquivos',
+          name: 'Arquivos',
           type: 'folder',
-          path: '/Imagens',
+          path: '/Arquivos',
           parent: '/',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          protected: true
         },
         {
-          id: '2',
-          name: 'Documentos',
+          id: 'default-imagens',
+          name: 'imagens',
           type: 'folder',
-          path: '/Documentos',
-          parent: '/',
-          createdAt: new Date().toISOString()
+          path: '/Arquivos/imagens',
+          parent: '/Arquivos',
+          createdAt: new Date().toISOString(),
+          protected: true
         },
         {
-          id: '3',
-          name: 'Uploads',
+          id: 'default-paginas',
+          name: 'paginas',
           type: 'folder',
-          path: '/Uploads',
-          parent: '/',
-          createdAt: new Date().toISOString()
+          path: '/Arquivos/paginas',
+          parent: '/Arquivos',
+          createdAt: new Date().toISOString(),
+          protected: true
+        },
+        {
+          id: 'default-estaticos',
+          name: 'estaticos',
+          type: 'folder',
+          path: '/Arquivos/estaticos',
+          parent: '/Arquivos',
+          createdAt: new Date().toISOString(),
+          protected: true
         }
       ];
-      localStorage.setItem('files', JSON.stringify(sampleFiles));
-      setFiles(sampleFiles);
+      localStorage.setItem('files', JSON.stringify(defaultFiles));
+      setFiles(defaultFiles);
     }
   };
 
@@ -253,6 +295,12 @@ export function FileManager() {
   };
 
   const handleDelete = (item: FileItem) => {
+    // Check if folder is protected
+    if (item.protected) {
+      toast.error(`A pasta "${item.name}" é protegida e não pode ser excluída`);
+      return;
+    }
+
     if (!confirm(`Tem certeza que deseja excluir "${item.name}"?`)) return;
 
     // If deleting a folder, also delete all its contents

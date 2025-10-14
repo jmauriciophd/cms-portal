@@ -31,6 +31,7 @@ interface FileData {
   url?: string;
   createdAt: string;
   updatedAt: string;
+  protected?: boolean;
 }
 
 interface FileOperationsProps {
@@ -405,6 +406,12 @@ export function DeleteFileDialog({ file, allFiles, onComplete, onCancel }: FileO
     : 0;
 
   const deleteFile = () => {
+    // Check if file/folder is protected
+    if ((file as any).protected) {
+      toast.error(`A pasta "${file.name}" é protegida e não pode ser excluída`);
+      return;
+    }
+
     if (isFolder && confirmText !== 'EXCLUIR') {
       toast.error('Digite EXCLUIR para confirmar');
       return;

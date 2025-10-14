@@ -5,6 +5,7 @@ import { Plus, Search, Edit, Trash, Eye, Layout, ExternalLink, Copy } from 'luci
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { PageBuilder } from './PageBuilder';
+import { UnifiedEditor } from '../editor/UnifiedEditor';
 import { toast } from 'sonner@2.0.3';
 
 interface Page {
@@ -12,9 +13,14 @@ interface Page {
   title: string;
   slug: string;
   components: any[];
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'scheduled';
   createdAt: string;
   updatedAt: string;
+  scheduledDate?: string;
+  meta?: {
+    robots?: string;
+    description?: string;
+  };
 }
 
 interface PageManagerProps {
@@ -128,9 +134,29 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   if (showBuilder) {
     return (
-      <PageBuilder
-        page={editingPage}
-        onSave={handleSave}
+      <UnifiedEditor
+        type="page"
+        initialTitle={editingPage?.title || ''}
+        initialSlug={editingPage?.slug || ''}
+        initialComponents={editingPage?.components || []}
+        initialStatus={editingPage?.status as any || 'draft'}
+        initialScheduledDate={editingPage?.scheduledDate}
+        initialMeta={editingPage?.meta}
+        onSave={(data) => {
+          const updatedPage: Page = {
+            ...editingPage,
+            id: editingPage?.id || Date.now().toString(),
+            title: data.title,
+            slug: data.slug,
+            components: data.components,
+            status: data.status as any,
+            scheduledDate: data.scheduledDate,
+            meta: data.meta,
+            createdAt: editingPage?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          handleSave(updatedPage);
+        }}
         onCancel={() => {
           setShowBuilder(false);
           setEditingPage(null);

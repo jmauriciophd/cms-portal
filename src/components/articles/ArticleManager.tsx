@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArticleEditor } from './ArticleEditor';
 import { UnifiedEditor } from '../editor/UnifiedEditor';
 import { TemplateManager } from '../templates/TemplateManager';
+import { saveHTMLFile, deleteHTMLFile } from '../files/FileSystemHelper';
 import { toast } from 'sonner@2.0.3';
 
 interface Article {
@@ -99,19 +100,42 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
 
   const handleSave = (article: Article) => {
     let updatedArticles;
-    if (article.id) {
-      updatedArticles = articles.map(a => a.id === article.id ? article : a);
-      toast.success('Matéria atualizada com sucesso!');
-    } else {
+    const isNew = !article.id || !articles.some(a => a.id === article.id);
+    
+    if (isNew) {
       const newArticle = {
         ...article,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
+        id: article.id || Date.now().toString(),
+        createdAt: article.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       updatedArticles = [newArticle, ...articles];
       toast.success('Matéria criada com sucesso!');
+      
+      // Salva arquivo HTML automaticamente
+      saveHTMLFile({
+        type: 'article',
+        id: newArticle.id,
+        title: newArticle.title,
+        slug: newArticle.slug,
+        components: newArticle.components || [],
+        meta: newArticle.meta
+      });
+    } else {
+      updatedArticles = articles.map(a => a.id === article.id ? article : a);
+      toast.success('Matéria atualizada com sucesso!');
+      
+      // Atualiza arquivo HTML
+      saveHTMLFile({
+        type: 'article',
+        id: article.id,
+        title: article.title,
+        slug: article.slug,
+        components: article.components || [],
+        meta: article.meta
+      });
     }
+    
     saveArticles(updatedArticles);
     setShowEditor(false);
     setEditingArticle(null);
@@ -119,8 +143,18 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
 
   const handleDelete = (id: string) => {
     if (confirm('Tem certeza que deseja excluir esta matéria?')) {
+      const article = articles.find(a => a.id === id);
       const updatedArticles = articles.filter(a => a.id !== id);
       saveArticles(updatedArticles);
+      
+      // Remove arquivo HTML também
+      if (article) {
+        deleteHTMLFile({
+          type: 'article',
+          slug: article.slug
+        });
+      }
+      
       toast.success('Matéria excluída com sucesso!');
     }
   };
@@ -153,7 +187,6 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
         initialMeta={editingArticle?.meta}
         onSave={(data) => {
           const updatedArticle: Article = {
-            ...editingArticle,
             id: editingArticle?.id || Date.now().toString(),
             title: data.title,
             slug: data.slug,
@@ -163,7 +196,11 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
             meta: data.meta,
             content: JSON.stringify(data.components),
             summary: data.meta?.description || editingArticle?.summary || '',
-            author: currentUser.name,
+            author: editingArticle?.author || currentUser.name,
+            categories: editingArticle?.categories || [],
+            featuredImage: editingArticle?.featuredImage,
+            approvalStatus: editingArticle?.approvalStatus,
+            reviewNotes: editingArticle?.reviewNotes,
             createdAt: editingArticle?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };

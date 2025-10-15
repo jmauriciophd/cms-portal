@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Badge } from '../ui/badge';
 import { PageBuilder } from './PageBuilder';
 import { UnifiedEditor } from '../editor/UnifiedEditor';
+import { saveHTMLFile, deleteHTMLFile } from '../files/FileSystemHelper';
 import { toast } from 'sonner@2.0.3';
 
 interface Page {
@@ -78,19 +79,42 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   const handleSave = (page: Page) => {
     let updatedPages;
-    if (page.id) {
-      updatedPages = pages.map(p => p.id === page.id ? page : p);
-      toast.success('Página atualizada com sucesso!');
-    } else {
+    const isNew = !page.id || !pages.some(p => p.id === page.id);
+    
+    if (isNew) {
       const newPage = {
         ...page,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
+        id: page.id || Date.now().toString(),
+        createdAt: page.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       updatedPages = [newPage, ...pages];
       toast.success('Página criada com sucesso!');
+      
+      // Salva arquivo HTML automaticamente
+      saveHTMLFile({
+        type: 'page',
+        id: newPage.id,
+        title: newPage.title,
+        slug: newPage.slug,
+        components: newPage.components || [],
+        meta: newPage.meta
+      });
+    } else {
+      updatedPages = pages.map(p => p.id === page.id ? page : p);
+      toast.success('Página atualizada com sucesso!');
+      
+      // Atualiza arquivo HTML
+      saveHTMLFile({
+        type: 'page',
+        id: page.id,
+        title: page.title,
+        slug: page.slug,
+        components: page.components || [],
+        meta: page.meta
+      });
     }
+    
     savePages(updatedPages);
     setShowBuilder(false);
     setEditingPage(null);
@@ -98,8 +122,18 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   const handleDelete = (id: string) => {
     if (confirm('Tem certeza que deseja excluir esta página?')) {
+      const page = pages.find(p => p.id === id);
       const updatedPages = pages.filter(p => p.id !== id);
       savePages(updatedPages);
+      
+      // Remove arquivo HTML também
+      if (page) {
+        deleteHTMLFile({
+          type: 'page',
+          slug: page.slug
+        });
+      }
+      
       toast.success('Página excluída com sucesso!');
     }
   };
@@ -144,7 +178,6 @@ export function PageManager({ currentUser }: PageManagerProps) {
         initialMeta={editingPage?.meta}
         onSave={(data) => {
           const updatedPage: Page = {
-            ...editingPage,
             id: editingPage?.id || Date.now().toString(),
             title: data.title,
             slug: data.slug,

@@ -40,6 +40,7 @@ import { Progress } from '../ui/progress';
 import { ImageEditor } from './ImageEditor';
 import { CopyFileDialog, MoveFileDialog, RenameFileDialog, DeleteFileDialog } from './FileOperations';
 import { VersionManager, useEditLock, useVersionControl } from '../version/VersionManager';
+import { FilePropertiesSheet } from './FilePropertiesSheet';
 import { toast } from 'sonner@2.0.3';
 
 interface FileItem {
@@ -85,6 +86,8 @@ export function FileManager() {
   const [operationFile, setOperationFile] = useState<FileItem | null>(null);
   const [operationType, setOperationType] = useState<'copy' | 'move' | 'rename' | 'delete' | 'history' | null>(null);
   const [currentUser] = useState({ id: '1', name: 'Admin' }); // Mock user
+  const [propertiesFile, setPropertiesFile] = useState<FileItem | null>(null);
+  const [showProperties, setShowProperties] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -324,6 +327,21 @@ export function FileManager() {
       .catch(() => {
         toast.error('Não foi possível copiar. URL: ' + url);
       });
+  };
+
+  const handleCopyPath = (path: string) => {
+    navigator.clipboard.writeText(path)
+      .then(() => {
+        toast.success('Caminho copiado para a área de transferência!');
+      })
+      .catch(() => {
+        toast.error('Não foi possível copiar. Caminho: ' + path);
+      });
+  };
+
+  const handleShowProperties = (item: FileItem) => {
+    setPropertiesFile(item);
+    setShowProperties(true);
   };
 
   const handleDownload = (item: FileItem) => {
@@ -634,6 +652,15 @@ export function FileManager() {
                         Histórico
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleCopyPath(item.path)}>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copiar Caminho
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleShowProperties(item)}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Propriedades
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         onClick={() => { setOperationFile(item); setOperationType('delete'); }}
                         className="text-red-600"
@@ -895,6 +922,13 @@ export function FileManager() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* File Properties Sheet */}
+      <FilePropertiesSheet
+        file={propertiesFile}
+        open={showProperties}
+        onOpenChange={setShowProperties}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Button } from '../ui/button';
@@ -34,6 +34,9 @@ import {
 import { toast } from 'sonner@2.0.3';
 import { StylePanel } from './StylePanel';
 import { ComponentLibrary } from './ComponentLibrary';
+import { ComponentTreeView } from './ComponentTreeView';
+import { TemplateSelector } from './TemplateSelector';
+import { InlineEditor } from './InlineEditor';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -100,6 +103,9 @@ export function UnifiedEditor({
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [lastDirectory, setLastDirectory] = useState<string>('');
   const [meta, setMeta] = useState(initialMeta || { robots: 'index,follow', description: '' });
+  const [showTemplateSelector, setShowTemplateSelector] = useState(!initialTitle && !initialComponents.length);
+  const [showTreeView, setShowTreeView] = useState(true);
+  const [editingComponentId, setEditingComponentId] = useState<string | null>(null);
 
   // Load last directory from localStorage
   useEffect(() => {
@@ -202,6 +208,10 @@ export function UnifiedEditor({
         if (comp.id === id) {
           const duplicate = JSON.parse(JSON.stringify(comp));
           duplicate.id = `component-${Date.now()}-${Math.random()}`;
+          // Regenerar IDs dos filhos também
+          if (duplicate.children) {
+            duplicate.children = regenerateIds(duplicate.children);
+          }
           result.push(duplicate);
         }
       });
@@ -211,6 +221,48 @@ export function UnifiedEditor({
     setComponents(newComponents);
     addToHistory(newComponents);
     toast.success('Componente duplicado');
+  };
+
+  const regenerateIds = (comps: Component[]): Component[] => {
+    return comps.map(comp => ({
+      ...comp,
+      id: `component-${Date.now()}-${Math.random()}`,
+      children: comp.children ? regenerateIds(comp.children) : undefined
+    }));
+  };
+
+  const toggleVisibility = (id: string) => {
+    const toggleRecursive = (comps: Component[]): Component[] => {
+      return comps.map(comp => {
+        if (comp.id === id) {
+          return { ...comp, visible: comp.visible === false ? true : false };
+        }
+        if (comp.children && comp.children.length > 0) {
+          return { ...comp, children: toggleRecursive(comp.children) };
+        }
+        return comp;
+      });
+    };
+    const newComponents = toggleRecursive(components);
+    setComponents(newComponents);
+    addToHistory(newComponents);
+  };
+
+  const moveComponentInTree = (dragId: string, targetId: string, position: 'before' | 'after' | 'inside') => {
+    // Implementar lógica de mover na árvore
+    const newComponents = [...components];
+    // TODO: Implementar movimento hierárquico
+    setComponents(newComponents);
+    addToHistory(newComponents);
+  };
+
+  const handleTemplateSelect = (template: any) => {
+    if (template && template.components) {
+      setComponents(template.components);
+      addToHistory(template.components);
+      toast.success(`Template "${template.name}" aplicado`);
+    }
+    setShowTemplateSelector(false);
   };
 
   const moveComponent = (dragIndex: number, hoverIndex: number) => {
@@ -275,78 +327,8 @@ export function UnifiedEditor({
     toast.success(`${type === 'article' ? 'Matéria' : 'Página'} despublicada e removida dos mecanismos de busca`);
   };
 
-  const DraggableComponent = ({ component, index }: { component: Component; index: number }) => {
-    const [{ isDragging }, drag] = useDrag({
-      type: 'component',
-      item: { index },
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging()
-      })
-    });
-
-    const [, drop] = useDrop({
-      accept: 'component',
-      hover: (item: { index: number }) => {
-        if (item.index !== index) {
-          moveComponent(item.index, index);
-          item.index = index;
-        }
-      }
-    });
-
-    return (
-      <div
-        ref={(node) => drag(drop(node))}
-        className={`relative border rounded-lg p-4 mb-3 cursor-move transition-all ${
-          isDragging ? 'opacity-50' : ''
-        } ${
-          selectedComponent?.id === component.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
-        }`}
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelectedComponent(component);
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <GripVertical className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="secondary">{component.type}</Badge>
-              {component.props.text && (
-                <span className="text-sm text-gray-600 truncate">
-                  {component.props.text.substring(0, 50)}
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  duplicateComponent(component.id);
-                }}
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteComponent(component.id);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Componente não usado mais - substituído por InlineEditor
+  // const DraggableComponent = ...
 
   const ImagePickerTab = () => {
     const [files, setFiles] = useState<any[]>([]);
@@ -426,10 +408,19 @@ export function UnifiedEditor({
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="h-screen flex flex-col bg-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b px-6 py-4">
+    <>
+      {/* Template Selector */}
+      <TemplateSelector
+        open={showTemplateSelector}
+        onOpenChange={setShowTemplateSelector}
+        type={type}
+        onSelectTemplate={handleTemplateSelect}
+      />
+
+      <DndProvider backend={HTML5Backend}>
+        <div className="h-screen flex flex-col bg-gray-50">
+          {/* Header */}
+          <div className="bg-white border-b px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">
               {type === 'article' ? 'Editor de Matéria' : 'Editor de Página'}
@@ -541,19 +532,45 @@ export function UnifiedEditor({
 
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Sidebar - Components */}
+          {/* Left Sidebar - Components & Tree */}
           <div className="w-80 bg-white border-r overflow-y-auto">
             <Tabs defaultValue="components" className="h-full">
-              <TabsList className="w-full">
-                <TabsTrigger value="components" className="flex-1">Componentes</TabsTrigger>
-                <TabsTrigger value="images" className="flex-1">Imagens</TabsTrigger>
+              <TabsList className="w-full grid grid-cols-3">
+                <TabsTrigger value="components">Biblioteca</TabsTrigger>
+                <TabsTrigger value="tree">Estrutura</TabsTrigger>
+                <TabsTrigger value="images">Imagens</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="components" className="p-4">
+              <TabsContent value="components" className="p-4 h-[calc(100%-48px)]">
                 <ComponentLibrary onAddComponent={addComponent} />
               </TabsContent>
 
-              <TabsContent value="images" className="p-4">
+              <TabsContent value="tree" className="h-[calc(100%-48px)]">
+                <ComponentTreeView
+                  components={components}
+                  selectedId={selectedComponent?.id || null}
+                  onSelect={(id) => {
+                    const findComponent = (comps: Component[]): Component | null => {
+                      for (const comp of comps) {
+                        if (comp.id === id) return comp;
+                        if (comp.children) {
+                          const found = findComponent(comp.children);
+                          if (found) return found;
+                        }
+                      }
+                      return null;
+                    };
+                    const comp = findComponent(components);
+                    if (comp) setSelectedComponent(comp);
+                  }}
+                  onMove={moveComponentInTree}
+                  onDelete={deleteComponent}
+                  onDuplicate={duplicateComponent}
+                  onToggleVisibility={toggleVisibility}
+                />
+              </TabsContent>
+
+              <TabsContent value="images" className="p-4 h-[calc(100%-48px)]">
                 <ImagePickerTab />
               </TabsContent>
             </Tabs>
@@ -569,12 +586,27 @@ export function UnifiedEditor({
                     <p>Adicione componentes da biblioteca</p>
                   </div>
                 ) : (
-                  <div onClick={() => setSelectedComponent(null)}>
+                  <div onClick={() => {
+                    setSelectedComponent(null);
+                    setEditingComponentId(null);
+                  }}>
                     {components.map((component, index) => (
-                      <DraggableComponent
+                      <InlineEditor
                         key={component.id}
                         component={component}
+                        isSelected={selectedComponent?.id === component.id}
+                        onClick={() => {
+                          setSelectedComponent(component);
+                          setEditingComponentId(null);
+                        }}
+                        onUpdate={(updates) => updateComponent(component.id, updates)}
+                        onDelete={() => deleteComponent(component.id)}
+                        onDuplicate={() => duplicateComponent(component.id)}
+                        onMove={moveComponent}
                         index={index}
+                        isEditing={editingComponentId === component.id}
+                        onEditStart={() => setEditingComponentId(component.id)}
+                        onEditEnd={() => setEditingComponentId(null)}
                       />
                     ))}
                   </div>
@@ -621,7 +653,8 @@ export function UnifiedEditor({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
-    </DndProvider>
+        </div>
+      </DndProvider>
+    </>
   );
 }

@@ -1,499 +1,509 @@
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useBuilderStore, BuilderNode } from '../../store/useBuilderStore';
+import { BuilderSidebar } from '../editor/BuilderSidebar';
+import { RenderNode } from '../editor/RenderNode';
+import { BuilderPropertiesPanel } from '../editor/BuilderPropertiesPanel';
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  Undo,
+  Redo,
+  Save,
+  Download,
+  Upload,
+  Trash2,
+  Eye,
+  Code,
+  FileJson,
+  Play
+} from 'lucide-react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Textarea } from '../ui/textarea';
-import { Card, CardContent } from '../ui/card';
-import { ArrowLeft, Save, Eye, Plus, Trash, GripVertical, Type, Image as ImageIcon, Layout, Box, Edit } from 'lucide-react';
-import { Switch } from '../ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner@2.0.3';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import { Textarea } from '../ui/textarea';
+import { Separator } from '../ui/separator';
 
-interface PageComponent {
-  id: string;
-  type: 'hero' | 'text' | 'image' | 'cards' | 'custom';
-  content: any;
-}
+export function PageBuilder() {
+  const {
+    nodes,
+    addNode,
+    moveNode,
+    undo,
+    redo,
+    saveLayout,
+    loadLayout,
+    clearLayout,
+    exportJSON,
+    exportHTML,
+    importJSON,
+    selectNode,
+  } = useBuilderStore();
 
-interface Page {
-  id?: string;
-  title: string;
-  slug: string;
-  components: PageComponent[];
-  status: 'draft' | 'published';
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface PageBuilderProps {
-  page: Page | null;
-  onSave: (page: Page) => void;
-  onCancel: () => void;
-}
-
-export function PageBuilder({ page, onSave, onCancel }: PageBuilderProps) {
-  const [formData, setFormData] = useState<Page>({
-    title: '',
-    slug: '',
-    components: [],
-    status: 'draft'
-  });
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
+  const [showJSONExport, setShowJSONExport] = useState(false);
+  const [showHTMLExport, setShowHTMLExport] = useState(false);
+  const [showJSONImport, setShowJSONImport] = useState(false);
+  const [importValue, setImportValue] = useState('');
+  const [exportedJSON, setExportedJSON] = useState('');
+  const [exportedHTML, setExportedHTML] = useState('');
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Carregar layout ao montar
   useEffect(() => {
-    if (page) {
-      setFormData(page);
-    }
-  }, [page]);
+    loadLayout();
+  }, []);
 
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-  };
+  // Auto-save a cada 30 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (nodes.length > 0) {
+        saveLayout();
+        console.log('Layout salvo automaticamente');
+      }
+    }, 30000);
 
-  const handleTitleChange = (title: string) => {
-    setFormData({
-      ...formData,
-      title,
-      slug: generateSlug(title)
-    });
-  };
+    return () => clearInterval(interval);
+  }, [nodes, saveLayout]);
 
-  const addComponent = (type: PageComponent['type']) => {
-    const newComponent: PageComponent = {
-      id: Date.now().toString(),
-      type,
-      content: getDefaultContent(type)
+  // Atalhos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Z = Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      // Ctrl/Cmd + Shift + Z = Redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      }
+      // Ctrl/Cmd + S = Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
     };
-    setFormData({
-      ...formData,
-      components: [...formData.components, newComponent]
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    // Aqui podemos adicionar lógica de preview do drop
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Se está arrastando da paleta
+    if (activeId.startsWith('palette-')) {
+      const type = active.data.current?.type;
+      if (type) {
+        // Se dropou em um container, adicionar como filho
+        if (overId !== 'canvas-root') {
+          addNode(type, overId);
+        } else {
+          // Adicionar na raiz
+          addNode(type, null);
+        }
+        toast.success(`${type} adicionado!`);
+      }
+      return;
+    }
+
+    // Se está movendo um nó existente
+    if (activeId !== overId) {
+      // Determinar se está dropando em um container ou reordenando
+      const overNode = findNodeById(nodes, overId);
+      const isContainer = overNode && 'children' in overNode;
+
+      if (isContainer) {
+        // Mover para dentro do container
+        moveNode(activeId, overId);
+      } else {
+        // Reordenar no mesmo nível
+        moveNode(activeId, null);
+      }
+      toast.success('Componente movido!');
+    }
+  };
+
+  const findNodeById = (nodes: BuilderNode[], id: string): BuilderNode | null => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if ('children' in node && node.children) {
+        const found = findNodeById(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const handleSave = () => {
+    saveLayout();
+    toast.success('Layout salvo com sucesso!');
+  };
+
+  const handleClear = () => {
+    if (confirm('Tem certeza que deseja limpar todo o layout?')) {
+      clearLayout();
+      toast.success('Layout limpo!');
+    }
+  };
+
+  const handleExportJSON = () => {
+    const json = exportJSON();
+    setExportedJSON(json);
+    setShowJSONExport(true);
+  };
+
+  const handleExportHTML = () => {
+    const html = exportHTML();
+    setExportedHTML(html);
+    setShowHTMLExport(true);
+  };
+
+  const handleImportJSON = () => {
+    setShowJSONImport(true);
+  };
+
+  const handleConfirmImport = () => {
+    try {
+      importJSON(importValue);
+      setShowJSONImport(false);
+      setImportValue('');
+      toast.success('Layout importado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao importar JSON. Verifique o formato.');
+    }
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${type} copiado para a área de transferência!`);
+  };
+
+  const downloadFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${filename} baixado!`);
+  };
+
+  // Gerar lista de IDs para SortableContext
+  const getAllNodeIds = (nodes: BuilderNode[]): string[] => {
+    const ids: string[] = [];
+    nodes.forEach(node => {
+      ids.push(node.id);
+      if ('children' in node && node.children) {
+        ids.push(...getAllNodeIds(node.children));
+      }
     });
-    setSelectedComponent(newComponent.id);
-    toast.success('Componente adicionado!');
+    return ids;
   };
 
-  const getDefaultContent = (type: string) => {
-    switch (type) {
-      case 'hero':
-        return { title: 'Título Hero', subtitle: 'Subtítulo', buttonText: 'Saiba Mais' };
-      case 'text':
-        return { text: '<p>Digite seu conteúdo aqui...</p>' };
-      case 'image':
-        return { url: '', alt: 'Imagem', caption: '' };
-      case 'cards':
-        return { 
-          cards: [
-            { title: 'Card 1', description: 'Descrição 1' },
-            { title: 'Card 2', description: 'Descrição 2' }
-          ] 
-        };
-      case 'custom':
-        return { html: '<div>HTML personalizado</div>' };
-      default:
-        return {};
-    }
-  };
-
-  const updateComponent = (id: string, content: any) => {
-    setFormData({
-      ...formData,
-      components: formData.components.map(c => 
-        c.id === id ? { ...c, content } : c
-      )
-    });
-  };
-
-  const deleteComponent = (id: string) => {
-    setFormData({
-      ...formData,
-      components: formData.components.filter(c => c.id !== id)
-    });
-    if (selectedComponent === id) {
-      setSelectedComponent(null);
-    }
-    toast.success('Componente removido!');
-  };
-
-  const moveComponent = (index: number, direction: 'up' | 'down') => {
-    const newComponents = [...formData.components];
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex >= 0 && newIndex < newComponents.length) {
-      [newComponents[index], newComponents[newIndex]] = [newComponents[newIndex], newComponents[index]];
-      setFormData({ ...formData, components: newComponents });
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({
-      ...formData,
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const renderComponentEditor = (component: PageComponent) => {
-    switch (component.type) {
-      case 'hero':
-        return (
-          <div className="space-y-3">
-            <div>
-              <Label>Título</Label>
-              <Input
-                value={component.content.title}
-                onChange={(e) => updateComponent(component.id, { ...component.content, title: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Subtítulo</Label>
-              <Input
-                value={component.content.subtitle}
-                onChange={(e) => updateComponent(component.id, { ...component.content, subtitle: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Texto do Botão</Label>
-              <Input
-                value={component.content.buttonText}
-                onChange={(e) => updateComponent(component.id, { ...component.content, buttonText: e.target.value })}
-              />
-            </div>
-          </div>
-        );
-      case 'text':
-        return (
-          <div>
-            <Label>Conteúdo HTML</Label>
-            <Textarea
-              value={component.content.text}
-              onChange={(e) => updateComponent(component.id, { text: e.target.value })}
-              rows={8}
-              className="font-mono text-sm"
-            />
-          </div>
-        );
-      case 'image':
-        return (
-          <div className="space-y-3">
-            <div>
-              <Label>URL da Imagem</Label>
-              <Input
-                value={component.content.url}
-                onChange={(e) => updateComponent(component.id, { ...component.content, url: e.target.value })}
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <Label>Texto Alternativo</Label>
-              <Input
-                value={component.content.alt}
-                onChange={(e) => updateComponent(component.id, { ...component.content, alt: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Legenda</Label>
-              <Input
-                value={component.content.caption}
-                onChange={(e) => updateComponent(component.id, { ...component.content, caption: e.target.value })}
-              />
-            </div>
-          </div>
-        );
-      case 'custom':
-        return (
-          <div>
-            <Label>HTML Personalizado</Label>
-            <Textarea
-              value={component.content.html}
-              onChange={(e) => updateComponent(component.id, { html: e.target.value })}
-              rows={12}
-              className="font-mono text-sm"
-            />
-          </div>
-        );
-      default:
-        return <p className="text-gray-500">Editor em desenvolvimento</p>;
-    }
-  };
-
-  const renderComponentPreview = (component: PageComponent) => {
-    switch (component.type) {
-      case 'hero':
-        return (
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-12 rounded-lg text-center">
-            <h1 className="mb-4">{component.content.title}</h1>
-            <p className="text-xl mb-6">{component.content.subtitle}</p>
-            <Button variant="secondary">{component.content.buttonText}</Button>
-          </div>
-        );
-      case 'text':
-        return (
-          <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: component.content.text }} />
-        );
-      case 'image':
-        return (
-          <div>
-            {component.content.url ? (
-              <img src={component.content.url} alt={component.content.alt} className="w-full rounded-lg" />
-            ) : (
-              <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                <ImageIcon className="w-12 h-12 text-gray-400" />
-              </div>
-            )}
-            {component.content.caption && (
-              <p className="text-sm text-gray-600 mt-2 text-center">{component.content.caption}</p>
-            )}
-          </div>
-        );
-      case 'custom':
-        return (
-          <div dangerouslySetInnerHTML={{ __html: component.content.html }} />
-        );
-      default:
-        return null;
-    }
-  };
-
-  if (showPreview) {
-    return (
-      <div className="p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <Button variant="ghost" onClick={() => setShowPreview(false)}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar ao Editor
-          </Button>
-          <h1 className="text-gray-900">{formData.title} - Preview</h1>
-          <div className="w-24"></div>
-        </div>
-        <div className="max-w-5xl mx-auto space-y-8 bg-white p-8 rounded-lg shadow">
-          {formData.components.map(component => (
-            <div key={component.id}>
-              {renderComponentPreview(component)}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const allNodeIds = getAllNodeIds(nodes);
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <Button variant="ghost" onClick={onCancel} className="mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar
-        </Button>
-        <h1 className="text-gray-900 mb-2">
-          {page ? 'Editar Página' : 'Nova Página'}
-        </h1>
-        <p className="text-gray-600">
-          URL: <span className="font-mono text-indigo-600">/{formData.slug || 'slug'}</span>
-        </p>
-      </div>
+    <div className="flex h-screen bg-gray-100">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        {/* Sidebar com componentes */}
+        <BuilderSidebar />
 
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar - Add Components */}
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="mb-4">Adicionar Componente</h3>
-                <div className="space-y-2">
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => addComponent('hero')}
-                  >
-                    <Box className="w-4 h-4 mr-2" />
-                    Hero Section
-                  </Button>
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => addComponent('text')}
-                  >
-                    <Type className="w-4 h-4 mr-2" />
-                    Texto
-                  </Button>
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => addComponent('image')}
-                  >
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Imagem
-                  </Button>
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => addComponent('custom')}
-                  >
-                    <Layout className="w-4 h-4 mr-2" />
-                    HTML Customizado
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Canvas principal */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Toolbar */}
+          <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h1 className="font-semibold text-gray-900">Page Builder</h1>
+              <Separator orientation="vertical" className="h-6 mx-2" />
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={undo}
+                  title="Desfazer (Ctrl+Z)"
+                >
+                  <Undo className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={redo}
+                  title="Refazer (Ctrl+Shift+Z)"
+                >
+                  <Redo className="w-4 h-4" />
+                </Button>
+              </div>
+              <Separator orientation="vertical" className="h-6 mx-2" />
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSave}
+                  title="Salvar (Ctrl+S)"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Salvar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClear}
+                  title="Limpar tudo"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="mb-4">Publicação</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Publicar</Label>
-                    <Switch
-                      checked={formData.status === 'published'}
-                      onCheckedChange={(checked) =>
-                        setFormData({ ...formData, status: checked ? 'published' : 'draft' })
-                      }
-                    />
-                  </div>
-                  <Button type="submit" className="w-full">
-                    <Save className="w-4 h-4 mr-2" />
-                    Salvar Página
-                  </Button>
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => setShowPreview(true)}
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    Preview
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Editor */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <div>
-                  <Label>Título da Página</Label>
-                  <Input
-                    value={formData.title}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    placeholder="Digite o título"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Slug (URL)</Label>
-                  <Input
-                    value={formData.slug}
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    placeholder="url-amigavel"
-                    required
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Components List */}
-            <div className="space-y-4">
-              <h3>Componentes da Página</h3>
-              {formData.components.length === 0 ? (
-                <Card>
-                  <CardContent className="p-8 text-center text-gray-500">
-                    <Layout className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>Nenhum componente adicionado</p>
-                    <p className="text-sm">Use o menu lateral para adicionar componentes</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                formData.components.map((component, index) => (
-                  <Card 
-                    key={component.id}
-                    className={selectedComponent === component.id ? 'ring-2 ring-indigo-500' : ''}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="w-4 h-4 text-gray-400" />
-                          <span className="capitalize">{component.type}</span>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => moveComponent(index, 'up')}
-                            disabled={index === 0}
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => moveComponent(index, 'down')}
-                            disabled={index === formData.components.length - 1}
-                          >
-                            ↓
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedComponent(
-                              selectedComponent === component.id ? null : component.id
-                            )}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteComponent(component.id)}
-                            className="text-red-600"
-                          >
-                            <Trash className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      {selectedComponent === component.id && (
-                        <div className="mt-4 pt-4 border-t">
-                          {renderComponentEditor(component)}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))
-              )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPreview(true)}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Preview
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportJSON}
+              >
+                <FileJson className="w-4 h-4 mr-2" />
+                JSON
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportHTML}
+              >
+                <Code className="w-4 h-4 mr-2" />
+                HTML
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImportJSON}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Importar
+              </Button>
             </div>
           </div>
 
-          {/* Preview Panel */}
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="mb-4">Preview Rápido</h3>
-                <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                  {formData.components.map(component => (
-                    <div key={component.id} className="text-xs">
-                      {renderComponentPreview(component)}
+          {/* Canvas área de edição */}
+          <div className="flex-1 overflow-auto p-6">
+            <div className="max-w-6xl mx-auto">
+              <SortableContext
+                items={allNodeIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <div
+                  id="canvas-root"
+                  className="bg-white rounded-lg shadow-md p-6 min-h-[80vh]"
+                  onClick={() => selectNode(null)}
+                >
+                  {nodes.length === 0 ? (
+                    <div className="flex items-center justify-center h-96 border-2 border-dashed border-gray-300 rounded-lg">
+                      <div className="text-center">
+                        <Play className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                          Canvas vazio
+                        </h3>
+                        <p className="text-gray-500">
+                          Arraste componentes da sidebar para começar
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-4">
+                      {nodes.map(node => (
+                        <RenderNode key={node.id} node={node} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </SortableContext>
+            </div>
           </div>
         </div>
-      </form>
+
+        {/* Painel de propriedades */}
+        <BuilderPropertiesPanel />
+
+        {/* Drag Overlay */}
+        <DragOverlay>
+          {activeId && activeId.startsWith('palette-') ? (
+            <div className="bg-white border-2 border-blue-500 rounded-lg p-4 shadow-lg">
+              Arrastando componente...
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* Dialog: Preview */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-6xl h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Preview da Página</DialogTitle>
+            <DialogDescription>
+              Visualização de como sua página ficará
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-gray-50 rounded-lg p-6">
+            {nodes.map(node => (
+              <RenderNode key={node.id} node={node} />
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Export JSON */}
+      <Dialog open={showJSONExport} onOpenChange={setShowJSONExport}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Exportar JSON</DialogTitle>
+            <DialogDescription>
+              Copie ou baixe o JSON da estrutura da página
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={exportedJSON}
+            readOnly
+            className="font-mono text-sm h-96"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => copyToClipboard(exportedJSON, 'JSON')}
+            >
+              Copiar
+            </Button>
+            <Button
+              onClick={() => downloadFile(exportedJSON, 'page-layout.json')}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Baixar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Export HTML */}
+      <Dialog open={showHTMLExport} onOpenChange={setShowHTMLExport}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Exportar HTML</DialogTitle>
+            <DialogDescription>
+              Copie ou baixe o HTML completo da página
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={exportedHTML}
+            readOnly
+            className="font-mono text-sm h-96"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => copyToClipboard(exportedHTML, 'HTML')}
+            >
+              Copiar
+            </Button>
+            <Button
+              onClick={() => downloadFile(exportedHTML, 'page.html')}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Baixar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Import JSON */}
+      <Dialog open={showJSONImport} onOpenChange={setShowJSONImport}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Importar JSON</DialogTitle>
+            <DialogDescription>
+              Cole o JSON de um layout para importar
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={importValue}
+            onChange={(e) => setImportValue(e.target.value)}
+            placeholder='[{"id":"...","type":"container","children":[...]}]'
+            className="font-mono text-sm h-96"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setShowJSONImport(false)}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmImport}>
+              <Upload className="w-4 h-4 mr-2" />
+              Importar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

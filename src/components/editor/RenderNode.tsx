@@ -236,6 +236,23 @@ export function RenderNode({ node, level = 0 }: RenderNodeProps) {
           </a>
         );
 
+      case 'richtext':
+        // Rich text usa props.content (HTML)
+        const richtextStyles = {
+          backgroundColor: node.props?.backgroundColor || '#ffffff',
+          padding: `${node.props?.padding || 20}px`,
+          borderRadius: `${node.props?.borderRadius || 4}px`,
+          ...node.styles
+        };
+        
+        return (
+          <div
+            className={`prose max-w-none ${node.className}`}
+            style={richtextStyles}
+            dangerouslySetInnerHTML={{ __html: node.props?.content || '<p>Rich text content</p>' }}
+          />
+        );
+
       case 'text':
       default:
         return (

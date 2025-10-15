@@ -6,6 +6,7 @@ export interface BaseNode {
   id: string;
   type: string;
   content?: string;
+  props?: Record<string, any>; // Propriedades dinâmicas baseadas no schema
   styles?: Record<string, string>;
   className?: string;
 }
@@ -34,6 +35,7 @@ interface BuilderState {
   addNode: (type: string, parentId?: string | null, index?: number) => void;
   removeNode: (id: string) => void;
   updateNode: (id: string, updates: Partial<BuilderNode>) => void;
+  updateNodeProperty: (id: string, property: string, value: any) => void;
   moveNode: (nodeId: string, targetParentId: string | null, index?: number) => void;
   duplicateNode: (id: string) => void;
   
@@ -321,6 +323,23 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     }));
     // Não adicionar ao histórico imediatamente para evitar travamento
     // O histórico será adicionado quando o usuário parar de digitar
+  },
+
+  // Atualizar propriedade específica do nó
+  updateNodeProperty: (id: string, property: string, value: any) => {
+    set(state => {
+      const node = findNodeById(state.nodes, id);
+      if (!node) return state;
+
+      const updatedProps = {
+        ...node.props,
+        [property]: value
+      };
+
+      return {
+        nodes: updateNodeById(state.nodes, id, { props: updatedProps })
+      };
+    });
   },
 
   // Mover nó

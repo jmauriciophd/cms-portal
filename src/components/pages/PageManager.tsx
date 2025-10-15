@@ -26,6 +26,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, Breadc
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { toast } from 'sonner@2.0.3';
 import { LinkManagementService } from '../../services/LinkManagementService';
+import { initializePageTemplate } from '../../utils/pageTemplates';
 
 interface Page {
   id: string;
@@ -172,17 +173,22 @@ export function PageManager({ currentUser }: PageManagerProps) {
   };
 
   const handleCreatePage = () => {
+    // Criar nova página com template padrão preenchido
+    const defaultTemplate = initializePageTemplate('default');
+    
     setEditingPage({
       id: '',
-      title: '',
+      title: 'Nova Página',
       slug: '',
       folder: currentPath,
-      components: [],
+      components: defaultTemplate, // Template padrão com rich text editor
       status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
     setShowBuilder(true);
+    
+    toast.success('Nova página criada com template padrão. Edite o conteúdo no painel à direita!');
   };
 
   const handleNavigate = (item: FolderItem) => {

@@ -15,25 +15,29 @@ import {
   Layout,
   Newspaper,
   Download,
-  Upload
+  Upload,
+  Lock
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { VisualEditor } from '../editor/VisualEditor';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
-interface Template {
+export interface Template {
   id: string;
   name: string;
   description: string;
-  type: 'article' | 'page' | 'custom';
+  type: 'article' | 'page' | 'header' | 'footer' | 'custom';
   thumbnail?: string;
   components: any[];
+  locked?: boolean; // Se true, componentes não podem ser editados quando aplicados
+  category?: 'content' | 'structure'; // content = editável, structure = header/footer
   createdAt: string;
   updatedAt: string;
 }
 
 interface TemplateManagerProps {
   onSelectTemplate?: (template: Template) => void;
-  type?: 'article' | 'page' | 'custom';
+  type?: 'article' | 'page' | 'header' | 'footer' | 'custom';
 }
 
 export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps) {
@@ -43,7 +47,8 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateDesc, setNewTemplateDesc] = useState('');
-  const [selectedType, setSelectedType] = useState<'article' | 'page' | 'custom'>(type || 'article');
+  const [selectedType, setSelectedType] = useState<Template['type']>(type || 'page');
+  const [filterType, setFilterType] = useState<'all' | Template['type']>('all');
 
   useEffect(() => {
     loadTemplates();
@@ -64,14 +69,228 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
 
   const createDefaultTemplates = () => {
     const stored = localStorage.getItem('templates');
-    if (stored) return; // Já existem templates
+    if (stored) {
+      const existing = JSON.parse(stored);
+      // Se já existem templates, não criar padrões novamente
+      if (existing.length > 0) return;
+    }
 
     const defaultTemplates: Template[] = [
+      // ============ TEMPLATES DE CABEÇALHO ============
+      {
+        id: 'template-header-default',
+        name: 'Cabeçalho Padrão',
+        description: 'Cabeçalho com logo e menu de navegação',
+        type: 'header',
+        locked: true,
+        category: 'structure',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        components: [
+          {
+            id: 'header-comp-1',
+            type: 'container',
+            locked: true,
+            props: { className: 'header-container' },
+            styles: { 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              padding: '1rem 2rem',
+              backgroundColor: '#ffffff',
+              borderBottom: '1px solid #e5e7eb',
+              position: 'sticky',
+              top: '0',
+              zIndex: '50'
+            },
+            children: [
+              {
+                id: 'header-logo',
+                type: 'heading',
+                locked: true,
+                props: { tag: 'h1', text: 'Meu Site' },
+                styles: { fontSize: '1.5rem', fontWeight: 'bold', color: '#111827' }
+              },
+              {
+                id: 'header-nav',
+                type: 'navigation',
+                locked: true,
+                props: {
+                  items: [
+                    { label: 'Início', url: '/' },
+                    { label: 'Sobre', url: '/sobre' },
+                    { label: 'Serviços', url: '/servicos' },
+                    { label: 'Contato', url: '/contato' }
+                  ]
+                },
+                styles: { display: 'flex', gap: '2rem' }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'template-header-minimal',
+        name: 'Cabeçalho Minimalista',
+        description: 'Cabeçalho simples e clean',
+        type: 'header',
+        locked: true,
+        category: 'structure',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        components: [
+          {
+            id: 'header-minimal-1',
+            type: 'container',
+            locked: true,
+            props: {},
+            styles: { 
+              padding: '2rem',
+              textAlign: 'center',
+              backgroundColor: '#f9fafb'
+            },
+            children: [
+              {
+                id: 'header-minimal-logo',
+                type: 'heading',
+                locked: true,
+                props: { tag: 'h1', text: 'LOGO' },
+                styles: { fontSize: '2rem', fontWeight: '300', letterSpacing: '0.1em' }
+              }
+            ]
+          }
+        ]
+      },
+
+      // ============ TEMPLATES DE RODAPÉ ============
+      {
+        id: 'template-footer-default',
+        name: 'Rodapé Padrão',
+        description: 'Rodapé com informações e links',
+        type: 'footer',
+        locked: true,
+        category: 'structure',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        components: [
+          {
+            id: 'footer-comp-1',
+            type: 'container',
+            locked: true,
+            props: {},
+            styles: { 
+              backgroundColor: '#1f2937',
+              color: '#ffffff',
+              padding: '3rem 2rem 1rem',
+              marginTop: 'auto'
+            },
+            children: [
+              {
+                id: 'footer-grid',
+                type: 'grid',
+                locked: true,
+                props: { columns: 3, gap: '2rem' },
+                styles: { marginBottom: '2rem' },
+                children: [
+                  {
+                    id: 'footer-col-1',
+                    type: 'container',
+                    locked: true,
+                    props: {},
+                    children: [
+                      {
+                        id: 'footer-title-1',
+                        type: 'heading',
+                        locked: true,
+                        props: { tag: 'h3', text: 'Sobre' },
+                        styles: { marginBottom: '1rem' }
+                      },
+                      {
+                        id: 'footer-text-1',
+                        type: 'paragraph',
+                        locked: true,
+                        props: { text: 'Informações sobre a empresa' },
+                        styles: { color: '#d1d5db', fontSize: '0.875rem' }
+                      }
+                    ]
+                  },
+                  {
+                    id: 'footer-col-2',
+                    type: 'container',
+                    locked: true,
+                    props: {},
+                    children: [
+                      {
+                        id: 'footer-title-2',
+                        type: 'heading',
+                        locked: true,
+                        props: { tag: 'h3', text: 'Links' },
+                        styles: { marginBottom: '1rem' }
+                      },
+                      {
+                        id: 'footer-links',
+                        type: 'list',
+                        locked: true,
+                        props: {
+                          items: [
+                            { text: 'Home', url: '/' },
+                            { text: 'Sobre', url: '/sobre' },
+                            { text: 'Contato', url: '/contato' }
+                          ]
+                        },
+                        styles: { color: '#d1d5db', fontSize: '0.875rem' }
+                      }
+                    ]
+                  },
+                  {
+                    id: 'footer-col-3',
+                    type: 'container',
+                    locked: true,
+                    props: {},
+                    children: [
+                      {
+                        id: 'footer-title-3',
+                        type: 'heading',
+                        locked: true,
+                        props: { tag: 'h3', text: 'Contato' },
+                        styles: { marginBottom: '1rem' }
+                      },
+                      {
+                        id: 'footer-text-3',
+                        type: 'paragraph',
+                        locked: true,
+                        props: { text: 'contato@exemplo.com\n(11) 1234-5678' },
+                        styles: { color: '#d1d5db', fontSize: '0.875rem', whiteSpace: 'pre-line' }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                id: 'footer-copyright',
+                type: 'paragraph',
+                locked: true,
+                props: { text: '© 2025 Todos os direitos reservados' },
+                styles: { 
+                  textAlign: 'center',
+                  paddingTop: '2rem',
+                  borderTop: '1px solid #374151',
+                  color: '#9ca3af',
+                  fontSize: '0.875rem'
+                }
+              }
+            ]
+          }
+        ]
+      },
+
+      // ============ TEMPLATES DE ARTIGO ============
       {
         id: 'template-article-basic',
         name: 'Artigo Básico',
         description: 'Template simples com título, imagem e texto',
         type: 'article',
+        category: 'content',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         components: [
@@ -90,13 +309,13 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
           {
             id: 'comp-3',
             type: 'image',
-            props: { src: 'https://via.placeholder.com/800x400', alt: 'Imagem destaque' },
+            props: { src: '', alt: 'Imagem destaque' },
             styles: { width: '100%', borderRadius: '0.5rem', marginBottom: '2rem' }
           },
           {
             id: 'comp-4',
             type: 'paragraph',
-            props: { text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' },
+            props: { text: 'Digite o conteúdo do artigo aqui...' },
             styles: { marginBottom: '1rem', lineHeight: '1.8', fontSize: '1.125rem' }
           }
         ]
@@ -106,6 +325,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
         name: 'Artigo Destaque',
         description: 'Com hero section e destaques',
         type: 'article',
+        category: 'content',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         components: [
@@ -114,8 +334,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
             type: 'hero',
             props: { 
               title: 'Título do Artigo em Destaque',
-              subtitle: 'Subtítulo ou resumo do artigo',
-              backgroundImage: 'https://via.placeholder.com/1200x600'
+              subtitle: 'Subtítulo ou resumo do artigo'
             },
             styles: { marginBottom: '3rem' }
           },
@@ -135,46 +354,14 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
           }
         ]
       },
-      {
-        id: 'template-article-multimedia',
-        name: 'Artigo Multimídia',
-        description: 'Com vídeo, imagens e galeria',
-        type: 'article',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        components: [
-          {
-            id: 'comp-1',
-            type: 'heading',
-            props: { tag: 'h1', text: 'Título do Artigo' },
-            styles: { fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center' }
-          },
-          {
-            id: 'comp-2',
-            type: 'video',
-            props: { src: '' },
-            styles: { width: '100%', maxWidth: '800px', margin: '0 auto 2rem', display: 'block' }
-          },
-          {
-            id: 'comp-3',
-            type: 'paragraph',
-            props: { text: 'Texto introdutório do artigo.' },
-            styles: { marginBottom: '2rem', lineHeight: '1.8', fontSize: '1.125rem' }
-          },
-          {
-            id: 'comp-4',
-            type: 'grid',
-            props: { columns: 3, gap: '1rem' },
-            styles: { marginBottom: '2rem' },
-            children: []
-          }
-        ]
-      },
+
+      // ============ TEMPLATES DE PÁGINA ============
       {
         id: 'template-page-landing',
         name: 'Landing Page',
         description: 'Página de destino completa',
         type: 'page',
+        category: 'content',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         components: [
@@ -221,6 +408,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
         name: 'Página Sobre',
         description: 'Página institucional',
         type: 'page',
+        category: 'content',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         components: [
@@ -239,7 +427,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
               {
                 id: 'comp-3',
                 type: 'image',
-                props: { src: 'https://via.placeholder.com/600x400', alt: 'Sobre' },
+                props: { src: '', alt: 'Sobre' },
                 styles: { width: '100%', borderRadius: '0.5rem' }
               },
               {
@@ -257,50 +445,10 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
                   {
                     id: 'comp-6',
                     type: 'paragraph',
-                    props: { text: 'Nossa história começa...' },
+                    props: { text: 'Digite sua história aqui...' },
                     styles: { lineHeight: '1.8' }
                   }
                 ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: 'template-page-contact',
-        name: 'Página de Contato',
-        description: 'Com formulário e informações',
-        type: 'page',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        components: [
-          {
-            id: 'comp-1',
-            type: 'heading',
-            props: { tag: 'h1', text: 'Entre em Contato' },
-            styles: { fontSize: '3rem', fontWeight: 'bold', marginBottom: '3rem', textAlign: 'center' }
-          },
-          {
-            id: 'comp-2',
-            type: 'grid',
-            props: { columns: 2, gap: '3rem' },
-            styles: { maxWidth: '1200px', margin: '0 auto', padding: '2rem' },
-            children: [
-              {
-                id: 'comp-3',
-                type: 'form',
-                props: {},
-                styles: {}
-              },
-              {
-                id: 'comp-4',
-                type: 'contact-info',
-                props: {
-                  email: 'contato@exemplo.com',
-                  phone: '(11) 1234-5678',
-                  address: 'Rua Exemplo, 123 - São Paulo, SP'
-                },
-                styles: {}
               }
             ]
           }
@@ -322,6 +470,8 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
       name: newTemplateName,
       description: newTemplateDesc,
       type: selectedType,
+      locked: selectedType === 'header' || selectedType === 'footer',
+      category: selectedType === 'header' || selectedType === 'footer' ? 'structure' : 'content',
       components: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -414,9 +564,28 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     event.target.value = '';
   };
 
-  const filteredTemplates = type 
-    ? templates.filter(t => t.type === type)
-    : templates;
+  const filteredTemplates = templates.filter(t => {
+    if (type) return t.type === type;
+    if (filterType === 'all') return true;
+    return t.type === filterType;
+  });
+
+  const getTypeLabel = (type: Template['type']) => {
+    const labels = {
+      page: 'Página',
+      article: 'Artigo',
+      header: 'Cabeçalho',
+      footer: 'Rodapé',
+      custom: 'Personalizado'
+    };
+    return labels[type];
+  };
+
+  const getTypeIcon = (type: Template['type']) => {
+    if (type === 'article') return <Newspaper className="w-3 h-3" />;
+    if (type === 'header' || type === 'footer') return <Lock className="w-3 h-3" />;
+    return <Layout className="w-3 h-3" />;
+  };
 
   if (showEditor && editingTemplate) {
     return (
@@ -435,7 +604,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold">Templates</h2>
-              <p className="text-gray-600">Gerencie templates para páginas e artigos</p>
+              <p className="text-gray-600">Gerencie templates para páginas, artigos, cabeçalhos e rodapés</p>
             </div>
             <div className="flex gap-2">
               <label>
@@ -460,33 +629,49 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
           </div>
 
           {/* Filter */}
-          {!type && (
-            <div className="flex gap-2 mb-6">
-              <Button
-                variant={selectedType === 'article' ? 'default' : 'outline'}
-                onClick={() => setSelectedType('article')}
-              >
-                Artigos
-              </Button>
-              <Button
-                variant={selectedType === 'page' ? 'default' : 'outline'}
-                onClick={() => setSelectedType('page')}
-              >
-                Páginas
-              </Button>
-              <Button
-                variant={selectedType === 'custom' ? 'default' : 'outline'}
-                onClick={() => setSelectedType('custom')}
-              >
-                Personalizados
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-2 mb-6">
+            <Button
+              variant={filterType === 'all' ? 'default' : 'outline'}
+              onClick={() => setFilterType('all')}
+              size="sm"
+            >
+              Todos
+            </Button>
+            <Button
+              variant={filterType === 'page' ? 'default' : 'outline'}
+              onClick={() => setFilterType('page')}
+              size="sm"
+            >
+              Páginas
+            </Button>
+            <Button
+              variant={filterType === 'article' ? 'default' : 'outline'}
+              onClick={() => setFilterType('article')}
+              size="sm"
+            >
+              Artigos
+            </Button>
+            <Button
+              variant={filterType === 'header' ? 'default' : 'outline'}
+              onClick={() => setFilterType('header')}
+              size="sm"
+            >
+              Cabeçalhos
+            </Button>
+            <Button
+              variant={filterType === 'footer' ? 'default' : 'outline'}
+              onClick={() => setFilterType('footer')}
+              size="sm"
+            >
+              Rodapés
+            </Button>
+          </div>
         </>
       )}
 
       {onSelectTemplate && (
         <div className="flex items-center justify-between mb-4 px-1">
+          <h3 className="font-semibold">Selecione um Template</h3>
           <div className="flex gap-2">
             <label>
               <input
@@ -504,7 +689,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
             </label>
             <Button size="sm" onClick={() => setShowNewDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Novo Template
+              Novo
             </Button>
           </div>
         </div>
@@ -512,23 +697,32 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
 
       {/* Templates Grid */}
       <ScrollArea className={onSelectTemplate ? "h-[500px] pr-4" : ""}>
-        <div className={`grid grid-cols-1 ${onSelectTemplate ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+        <div className={`grid grid-cols-1 ${onSelectTemplate ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-4`}>
           {filteredTemplates.map((template) => (
             <Card key={template.id} className={`hover:shadow-lg transition-shadow ${onSelectTemplate ? 'hover:border-indigo-500' : ''}`}>
               <CardHeader className={onSelectTemplate ? "p-4" : ""}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className={`${onSelectTemplate ? 'text-base' : 'text-lg'} mb-1 truncate`}>
+                    <CardTitle className={`${onSelectTemplate ? 'text-base' : 'text-lg'} mb-1 truncate flex items-center gap-2`}>
                       {template.name}
+                      {template.locked && <Lock className="w-3 h-3 text-gray-400" />}
                     </CardTitle>
                     <p className={`text-xs text-gray-600 ${onSelectTemplate ? 'line-clamp-2' : ''}`}>
                       {template.description}
                     </p>
                   </div>
-                  <Badge variant={template.type === 'article' ? 'default' : 'secondary'} className="shrink-0">
-                    {template.type === 'article' ? <Newspaper className="w-3 h-3" /> : <Layout className="w-3 h-3" />}
+                  <Badge 
+                    variant={template.type === 'article' ? 'default' : template.type === 'page' ? 'secondary' : 'outline'} 
+                    className="shrink-0"
+                  >
+                    {getTypeIcon(template.type)}
                   </Badge>
                 </div>
+                {template.category && (
+                  <Badge variant="outline" className="mt-2 text-xs">
+                    {template.category === 'structure' ? 'Estrutura' : 'Conteúdo'}
+                  </Badge>
+                )}
               </CardHeader>
               <CardContent className={onSelectTemplate ? "p-4 pt-0" : ""}>
                 {/* Preview */}
@@ -537,8 +731,11 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
                 </div>
 
                 <div className="text-xs text-gray-500 mb-3">
-                  <p>Criado: {new Date(template.createdAt).toLocaleDateString('pt-BR')}</p>
+                  <p>Tipo: {getTypeLabel(template.type)}</p>
                   <p>{template.components.length} componente(s)</p>
+                  {template.locked && (
+                    <p className="text-amber-600 font-medium">🔒 Bloqueado para edição</p>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -631,29 +828,23 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">Tipo</label>
-              <div className="flex gap-2">
-                <Button
-                  variant={selectedType === 'article' ? 'default' : 'outline'}
-                  onClick={() => setSelectedType('article')}
-                  className="flex-1"
-                >
-                  Artigo
-                </Button>
-                <Button
-                  variant={selectedType === 'page' ? 'default' : 'outline'}
-                  onClick={() => setSelectedType('page')}
-                  className="flex-1"
-                >
-                  Página
-                </Button>
-                <Button
-                  variant={selectedType === 'custom' ? 'default' : 'outline'}
-                  onClick={() => setSelectedType('custom')}
-                  className="flex-1"
-                >
-                  Personalizado
-                </Button>
-              </div>
+              <Select value={selectedType} onValueChange={(value: Template['type']) => setSelectedType(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="page">Página</SelectItem>
+                  <SelectItem value="article">Artigo</SelectItem>
+                  <SelectItem value="header">Cabeçalho (bloqueado)</SelectItem>
+                  <SelectItem value="footer">Rodapé (bloqueado)</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+              {(selectedType === 'header' || selectedType === 'footer') && (
+                <p className="text-xs text-amber-600 mt-2">
+                  🔒 Este template será bloqueado para edição quando aplicado
+                </p>
+              )}
             </div>
             <div className="flex gap-2 pt-4">
               <Button onClick={handleCreateTemplate} className="flex-1">

@@ -652,8 +652,11 @@ export function FileManager() {
             onNewPage={handleNewPage}
           />
           
-          <label className="cursor-pointer">
-            <Button disabled={isUploading}>
+          <div>
+            <Button 
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
               <Upload className="w-4 h-4 mr-2" />
               {isUploading ? 'Enviando...' : 'Upload'}
             </Button>
@@ -665,7 +668,7 @@ export function FileManager() {
               onChange={handleFileUpload}
               accept={ALLOWED_FILE_TYPES.join(',')}
             />
-          </label>
+          </div>
         </div>
       </div>
 

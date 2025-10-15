@@ -32,7 +32,7 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
     title: '',
     summary: '',
     content: '',
-    author: currentUser.name,
+    author: currentUser?.name || 'Admin',
     status: 'draft',
     slug: ''
   });

@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { PageBuilder } from './PageBuilder';
 import { UnifiedEditor } from '../editor/UnifiedEditor';
 import { saveHTMLFile, deleteHTMLFile } from '../files/FileSystemHelper';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbList, BreadcrumbPage } from '../ui/breadcrumb';
@@ -323,10 +322,29 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   if (showBuilder) {
     return (
-      <div className="h-full">
-        <PageBuilder
-          page={editingPage || undefined}
-          onSave={handleSave}
+      <div className="fixed inset-0 bg-white z-50">
+        <UnifiedEditor
+          type="page"
+          initialTitle={editingPage?.title || ''}
+          initialSlug={editingPage?.slug || ''}
+          initialComponents={editingPage?.components || []}
+          initialStatus={editingPage?.status || 'draft'}
+          initialScheduledDate={editingPage?.scheduledDate}
+          initialMeta={editingPage?.meta}
+          onSave={(data) => {
+            handleSave({
+              ...editingPage!,
+              id: editingPage?.id || '',
+              title: data.title,
+              slug: data.slug,
+              components: data.components,
+              status: data.status,
+              scheduledDate: data.scheduledDate,
+              meta: data.meta,
+              createdAt: editingPage?.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+          }}
           onCancel={() => {
             setShowBuilder(false);
             setEditingPage(null);

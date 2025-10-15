@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { ArticleEditor } from './ArticleEditor';
+import { UnifiedEditor } from '../editor/UnifiedEditor';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbList, BreadcrumbPage } from '../ui/breadcrumb';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { toast } from 'sonner@2.0.3';
@@ -28,6 +28,7 @@ interface Article {
   slug: string;
   content: string;
   excerpt: string;
+  components?: any[]; // Componentes do UnifiedEditor
   featuredImage?: string;
   author: string;
   status: 'draft' | 'published' | 'scheduled';
@@ -649,20 +650,39 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
         </div>
       )}
 
-      {/* Article Editor Dialog */}
+      {/* Article Editor - UnifiedEditor */}
       {showEditor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <ArticleEditor
-              article={editingArticle}
-              onSave={handleSaveArticle}
-              onCancel={() => {
-                setShowEditor(false);
-                setEditingArticle(null);
-              }}
-              currentUser={currentUser}
-            />
-          </div>
+        <div className="fixed inset-0 bg-white z-50">
+          <UnifiedEditor
+            type="article"
+            initialTitle={editingArticle?.title || ''}
+            initialSlug={editingArticle?.slug || ''}
+            initialComponents={editingArticle?.components || []}
+            initialStatus={editingArticle?.status || 'draft'}
+            initialScheduledDate={editingArticle?.publishedAt}
+            onSave={(data) => {
+              handleSaveArticle({
+                ...editingArticle!,
+                id: editingArticle?.id || Date.now().toString(),
+                title: data.title,
+                slug: data.slug,
+                content: '', // Mantém compatibilidade
+                excerpt: editingArticle?.excerpt || '',
+                components: data.components,
+                author: editingArticle?.author || currentUser?.name || 'Admin',
+                status: data.status,
+                categories: editingArticle?.categories || [],
+                tags: editingArticle?.tags || [],
+                createdAt: editingArticle?.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                publishedAt: data.scheduledDate
+              });
+            }}
+            onCancel={() => {
+              setShowEditor(false);
+              setEditingArticle(null);
+            }}
+          />
         </div>
       )}
     </div>

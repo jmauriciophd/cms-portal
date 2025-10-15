@@ -78,7 +78,7 @@ interface LinkManagerProps {
 }
 
 export function LinkManager({ currentUser }: LinkManagerProps) {
-  const { can } = usePermissions();
+  const { hasPermission } = usePermissions();
   const [links, setLinks] = useState<Link[]>([]);
   const [filteredLinks, setFilteredLinks] = useState<Link[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -329,7 +329,7 @@ export function LinkManager({ currentUser }: LinkManagerProps) {
 
   const stats = LinkManagementService.getStatistics();
 
-  if (!can('links', 'view')) {
+  if (!hasPermission('links.view')) {
     return (
       <div className="p-8">
         <Card>
@@ -375,7 +375,7 @@ export function LinkManager({ currentUser }: LinkManagerProps) {
               </Button>
             </label>
 
-            {can('links', 'create') && (
+            {hasPermission('links.create') && (
               <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                 <DialogTrigger asChild>
                   <Button>
@@ -751,7 +751,7 @@ export function LinkManager({ currentUser }: LinkManagerProps) {
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            {can('links', 'edit') && (
+                            {hasPermission('links.edit') && (
                               <DropdownMenuItem
                                 onClick={() => {
                                   setSelectedLink(link);
@@ -762,7 +762,7 @@ export function LinkManager({ currentUser }: LinkManagerProps) {
                                 Editar
                               </DropdownMenuItem>
                             )}
-                            {can('links', 'delete') && link.type === 'external' && (
+                            {hasPermission('links.delete') && link.type === 'external' && (
                               <DropdownMenuItem
                                 onClick={() => {
                                   setSelectedLink(link);

@@ -45,7 +45,23 @@ function AdminDashboard() {
   useEffect(() => {
     const user = localStorage.getItem('currentUser');
     if (user) {
-      setCurrentUser(JSON.parse(user));
+      const userData = JSON.parse(user);
+      
+      // ✅ VERIFICAR STATUS DA CONTA
+      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      const activeUser = storedUsers.find((u: any) => u.id === userData.id || u.email === userData.email);
+      
+      if (activeUser && (activeUser.status === 'inactive' || activeUser.status === 'suspended' || activeUser.status === 'blocked')) {
+        // Conta foi desativada - fazer logout forçado
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
+        navigate('/login', { replace: true });
+        // Mostrar mensagem seria ideal, mas toast não está disponível aqui
+        alert('Sua conta foi desativada. Entre em contato com o administrador.');
+        return;
+      }
+      
+      setCurrentUser(userData);
     } else {
       navigate('/login', { replace: true });
     }

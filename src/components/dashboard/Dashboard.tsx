@@ -16,7 +16,6 @@ import {
   Link as LinkIcon,
   History
 } from 'lucide-react';
-import { ArticleManager } from '../articles/ArticleManager';
 import { PageManager } from '../pages/PageManager';
 import { FileManager } from '../files/FileManager';
 import { MenuManager } from '../menu/MenuManager';
@@ -34,7 +33,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type View = 'home' | 'articles' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -42,7 +41,6 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
 
   const menuItems = [
     { id: 'home', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'editor'] },
-    { id: 'articles', icon: FileText, label: 'Matérias', roles: ['admin', 'editor'] },
     { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },
     { id: 'menu', icon: MenuIcon, label: 'Menu', roles: ['admin'] },
@@ -59,8 +57,6 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
     switch (currentView) {
       case 'home':
         return <DashboardHome currentUser={currentUser} onNavigate={setCurrentView} />;
-      case 'articles':
-        return <ArticleManager currentUser={currentUser} />;
       case 'pages':
         return <PageManager currentUser={currentUser} />;
       case 'files':

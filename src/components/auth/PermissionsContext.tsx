@@ -32,6 +32,13 @@ export const ALL_PERMISSIONS: Permission[] = [
   { id: 'content.delete', name: 'Excluir Conteúdo', description: 'Remover páginas e artigos', category: 'content' },
   { id: 'content.publish', name: 'Publicar Conteúdo', description: 'Publicar/despublicar conteúdo', category: 'content' },
   
+  // Links
+  { id: 'links.view', name: 'Visualizar Links', description: 'Ver gerenciador de links', category: 'content' },
+  { id: 'links.create', name: 'Criar Links', description: 'Adicionar novos links', category: 'content' },
+  { id: 'links.edit', name: 'Editar Links', description: 'Modificar links existentes', category: 'content' },
+  { id: 'links.delete', name: 'Excluir Links', description: 'Remover links', category: 'content' },
+  { id: 'links.check', name: 'Verificar Links', description: 'Executar verificação de links', category: 'content' },
+  
   // Arquivos
   { id: 'files.view', name: 'Visualizar Arquivos', description: 'Acessar gerenciador de arquivos', category: 'files' },
   { id: 'files.upload', name: 'Upload de Arquivos', description: 'Enviar novos arquivos', category: 'files' },
@@ -81,6 +88,10 @@ const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       'content.create',
       'content.edit',
       'content.publish',
+      'links.view',
+      'links.create',
+      'links.edit',
+      'links.check',
       'files.view',
       'files.upload',
       'files.edit',

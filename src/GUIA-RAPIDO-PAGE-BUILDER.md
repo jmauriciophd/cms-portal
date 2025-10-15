@@ -36,7 +36,7 @@
 
 ```
 1. Sidebar → "Botão"
-2. Arraste para dentro do container
+2. Arraste para dentro do container-ainda não funcional ao tentar arrastar um item qualque para dentro do container ele não permite
 3. Duplo clique
 4. Digite: "Saiba Mais"
 5. Enter

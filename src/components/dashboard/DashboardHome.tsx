@@ -64,7 +64,6 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
   const [showTips, setShowTips] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [stats, setStats] = useState({
-    articles: { total: 0, published: 0, draft: 0 },
     pages: { total: 0, published: 0, draft: 0 },
     files: { total: 0, images: 0 },
     users: { total: 0, active: 0 },
@@ -178,14 +177,7 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
   };
 
   const quickActions: QuickAction[] = [
-    {
-      title: 'Nova Matéria',
-      description: 'Criar um novo artigo ou notícia',
-      icon: FileText,
-      action: () => onNavigate('articles'),
-      color: 'bg-blue-500',
-      requiredPermission: 'content.create',
-    },
+
     {
       title: 'Nova Página',
       description: 'Criar uma nova página no site',
@@ -361,26 +353,6 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
       {canViewWidget('stats') && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Artigos */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Artigos
-              </CardTitle>
-              <FileText className="w-4 h-4 text-gray-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{stats.articles.total}</div>
-              <div className="flex gap-4 mt-2 text-sm">
-                <span className="text-green-600">
-                  {stats.articles.published} publicados
-                </span>
-                <span className="text-gray-500">
-                  {stats.articles.draft} rascunhos
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Páginas */}
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">

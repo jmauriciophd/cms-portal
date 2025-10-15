@@ -29,6 +29,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       password: 'admin123', 
       name: 'Administrador',
       role: 'admin',
+      status: 'active',
       twoFactorEnabled: false 
     },
     { 
@@ -37,6 +38,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       password: 'editor123', 
       name: 'Editor',
       role: 'editor',
+      status: 'active',
       twoFactorEnabled: false 
     },
     { 
@@ -45,6 +47,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       password: 'viewer123', 
       name: 'Visualizador',
       role: 'viewer',
+      status: 'active',
       twoFactorEnabled: false 
     }
   ];
@@ -54,9 +57,30 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setLoading(true);
 
     setTimeout(() => {
-      const user = mockUsers.find(u => u.email === email && u.password === password);
+      // Verificar usuários do localStorage
+      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      let user = storedUsers.find((u: any) => u.email === email && u.password === password);
+      
+      // Se não encontrou no localStorage, busca nos mockUsers
+      if (!user) {
+        user = mockUsers.find(u => u.email === email && u.password === password);
+      }
       
       if (user) {
+        // ✅ VERIFICAR STATUS DA CONTA
+        if (user.status === 'inactive' || user.status === 'suspended') {
+          toast.error('Conta desativada. Entre em contato com o administrador.');
+          setLoading(false);
+          return;
+        }
+
+        // Verificar se conta está bloqueada por tentativas
+        if (user.status === 'blocked') {
+          toast.error('Conta bloqueada por múltiplas tentativas de login. Entre em contato com o administrador.');
+          setLoading(false);
+          return;
+        }
+
         if (user.twoFactorEnabled) {
           setShowOTP(true);
           toast.success('Código 2FA enviado para seu email');
@@ -75,8 +99,24 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setTimeout(() => {
       // Mock OTP verification (any 6 digits work for demo)
       if (otpCode.length === 6) {
-        const user = mockUsers.find(u => u.email === email);
+        // Verificar usuários do localStorage
+        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        let user = storedUsers.find((u: any) => u.email === email);
+        
+        // Se não encontrou no localStorage, busca nos mockUsers
+        if (!user) {
+          user = mockUsers.find(u => u.email === email);
+        }
+
         if (user) {
+          // ✅ VERIFICAR STATUS DA CONTA novamente
+          if (user.status === 'inactive' || user.status === 'suspended' || user.status === 'blocked') {
+            toast.error('Conta desativada. Entre em contato com o administrador.');
+            setLoading(false);
+            setShowOTP(false);
+            return;
+          }
+
           completeLogin(user);
         }
       } else {

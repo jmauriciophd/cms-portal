@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBuilderStore } from '../../store/useBuilderStore';
 import { X, Palette, Type, Layout, Settings } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -18,18 +18,13 @@ import {
 
 export function BuilderPropertiesPanel() {
   const { nodes, selectedNodeId, updateNode, selectNode } = useBuilderStore();
+  
+  // Estado local para evitar travamentos
+  const [localContent, setLocalContent] = useState('');
+  const [localClassName, setLocalClassName] = useState('');
   const [customCSS, setCustomCSS] = useState('');
 
-  if (!selectedNodeId) {
-    return (
-      <div className="w-80 bg-white border-l border-gray-200 flex flex-col items-center justify-center text-gray-400">
-        <Settings className="w-16 h-16 mb-4" />
-        <p className="text-sm">Selecione um componente</p>
-        <p className="text-xs">para editar propriedades</p>
-      </div>
-    );
-  }
-
+  // Encontrar nó selecionado
   const findNodeById = (nodes: any[], id: string): any => {
     for (const node of nodes) {
       if (node.id === id) return node;
@@ -41,23 +36,61 @@ export function BuilderPropertiesPanel() {
     return null;
   };
 
-  const selectedNode = findNodeById(nodes, selectedNodeId);
+  const selectedNode = selectedNodeId ? findNodeById(nodes, selectedNodeId) : null;
+
+  // Sincronizar estado local com nó selecionado
+  useEffect(() => {
+    if (selectedNode) {
+      setLocalContent(selectedNode.content || '');
+      setLocalClassName(selectedNode.className || '');
+    } else {
+      setLocalContent('');
+      setLocalClassName('');
+    }
+  }, [selectedNodeId, selectedNode?.id]);
+
+  if (!selectedNodeId) {
+    return (
+      <div className="w-80 bg-white border-l border-gray-200 flex flex-col items-center justify-center text-gray-400">
+        <Settings className="w-16 h-16 mb-4" />
+        <p className="text-sm">Selecione um componente</p>
+        <p className="text-xs">para editar propriedades</p>
+      </div>
+    );
+  }
 
   if (!selectedNode) {
     return null;
   }
 
+  // Handlers com debounce manual
   const handleContentChange = (value: string) => {
+    setLocalContent(value);
+    // Atualizar imediatamente no store
     updateNode(selectedNodeId, { content: value });
   };
 
   const handleClassChange = (value: string) => {
+    setLocalClassName(value);
+    // Atualizar imediatamente no store
     updateNode(selectedNodeId, { className: value });
   };
 
   const handleStyleChange = (property: string, value: string) => {
     const newStyles = { ...(selectedNode.styles || {}), [property]: value };
     updateNode(selectedNodeId, { styles: newStyles });
+  };
+
+  const addClass = (newClass: string) => {
+    const currentClasses = localClassName.trim();
+    const classArray = currentClasses ? currentClasses.split(' ') : [];
+    
+    // Evitar duplicatas
+    if (!classArray.includes(newClass)) {
+      const updated = [...classArray, newClass].join(' ');
+      setLocalClassName(updated);
+      updateNode(selectedNodeId, { className: updated });
+    }
   };
 
   const commonSpacingClasses = [
@@ -127,11 +160,15 @@ export function BuilderPropertiesPanel() {
                   <Label htmlFor="content">Conteúdo</Label>
                   <Textarea
                     id="content"
-                    value={selectedNode.content || ''}
+                    value={localContent}
                     onChange={(e) => handleContentChange(e.target.value)}
                     placeholder="Digite o conteúdo..."
                     rows={4}
+                    className="resize-none"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Digite livremente. Mudanças são salvas automaticamente.
+                  </p>
                 </div>
               )}
 
@@ -141,10 +178,13 @@ export function BuilderPropertiesPanel() {
                   <Label htmlFor="imageUrl">URL da Imagem</Label>
                   <Input
                     id="imageUrl"
-                    value={selectedNode.content || ''}
+                    value={localContent}
                     onChange={(e) => handleContentChange(e.target.value)}
                     placeholder="https://..."
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Cole a URL da imagem
+                  </p>
                 </div>
               )}
 
@@ -172,10 +212,11 @@ export function BuilderPropertiesPanel() {
                 <Label htmlFor="className">Classes CSS (Tailwind)</Label>
                 <Textarea
                   id="className"
-                  value={selectedNode.className || ''}
+                  value={localClassName}
                   onChange={(e) => handleClassChange(e.target.value)}
                   placeholder="p-4 bg-blue-500 text-white rounded..."
                   rows={3}
+                  className="resize-none"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Separe as classes com espaços
@@ -191,7 +232,7 @@ export function BuilderPropertiesPanel() {
                   {commonColorClasses.slice(0, 12).map(cls => (
                     <button
                       key={cls}
-                      onClick={() => handleClassChange(`${selectedNode.className || ''} ${cls}`.trim())}
+                      onClick={() => addClass(cls)}
                       className={`${cls} border border-gray-300 rounded px-2 py-1 text-xs hover:ring-2 hover:ring-blue-500`}
                       title={cls}
                     >
@@ -199,6 +240,9 @@ export function BuilderPropertiesPanel() {
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Clique para adicionar a classe
+                </p>
               </div>
 
               <Separator />
@@ -212,7 +256,7 @@ export function BuilderPropertiesPanel() {
                       key={cls}
                       variant="outline"
                       size="sm"
-                      onClick={() => handleClassChange(`${selectedNode.className || ''} ${cls}`.trim())}
+                      onClick={() => addClass(cls)}
                       className="text-xs"
                     >
                       {cls}
@@ -232,6 +276,7 @@ export function BuilderPropertiesPanel() {
                   onChange={(e) => setCustomCSS(e.target.value)}
                   placeholder="background: linear-gradient(...);"
                   rows={3}
+                  className="resize-none"
                 />
                 <Button
                   size="sm"
@@ -243,6 +288,7 @@ export function BuilderPropertiesPanel() {
                       return acc;
                     }, {});
                     updateNode(selectedNodeId, { styles });
+                    setCustomCSS('');
                   }}
                 >
                   Aplicar CSS
@@ -261,7 +307,7 @@ export function BuilderPropertiesPanel() {
                       key={cls}
                       variant="outline"
                       size="sm"
-                      onClick={() => handleClassChange(`${selectedNode.className || ''} ${cls}`.trim())}
+                      onClick={() => addClass(cls)}
                       className="text-xs"
                     >
                       {cls}
@@ -276,8 +322,7 @@ export function BuilderPropertiesPanel() {
               <div>
                 <Label htmlFor="display">Display</Label>
                 <Select
-                  value=""
-                  onValueChange={(value) => handleClassChange(`${selectedNode.className || ''} ${value}`.trim())}
+                  onValueChange={(value) => addClass(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -296,8 +341,7 @@ export function BuilderPropertiesPanel() {
               <div>
                 <Label htmlFor="flexDirection">Flex Direction</Label>
                 <Select
-                  value=""
-                  onValueChange={(value) => handleClassChange(`${selectedNode.className || ''} ${value}`.trim())}
+                  onValueChange={(value) => addClass(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -315,8 +359,7 @@ export function BuilderPropertiesPanel() {
               <div>
                 <Label htmlFor="justify">Justify Content</Label>
                 <Select
-                  value=""
-                  onValueChange={(value) => handleClassChange(`${selectedNode.className || ''} ${value}`.trim())}
+                  onValueChange={(value) => addClass(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -334,8 +377,7 @@ export function BuilderPropertiesPanel() {
               <div>
                 <Label htmlFor="align">Align Items</Label>
                 <Select
-                  value=""
-                  onValueChange={(value) => handleClassChange(`${selectedNode.className || ''} ${value}`.trim())}
+                  onValueChange={(value) => addClass(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -353,8 +395,7 @@ export function BuilderPropertiesPanel() {
               <div>
                 <Label htmlFor="width">Width</Label>
                 <Select
-                  value=""
-                  onValueChange={(value) => handleClassChange(`${selectedNode.className || ''} ${value}`.trim())}
+                  onValueChange={(value) => addClass(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -380,6 +421,14 @@ export function BuilderPropertiesPanel() {
                 <div><strong>Filhos:</strong> {selectedNode.children.length}</div>
               )}
             </div>
+          </div>
+
+          {/* Dica de uso */}
+          <div className="mt-3 p-3 bg-blue-50 rounded-md border border-blue-200">
+            <p className="text-xs text-blue-900">
+              💡 <strong>Dica:</strong> Digite livremente nos campos de texto. 
+              As mudanças são aplicadas automaticamente!
+            </p>
           </div>
         </div>
       </ScrollArea>

@@ -319,7 +319,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     set(state => ({
       nodes: updateNodeById(state.nodes, id, updates)
     }));
-    get().addToHistory();
+    // Não adicionar ao histórico imediatamente para evitar travamento
+    // O histórico será adicionado quando o usuário parar de digitar
   },
 
   // Mover nó

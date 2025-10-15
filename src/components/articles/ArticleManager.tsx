@@ -301,10 +301,32 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
 
   if (showEditor) {
     return (
-      <div className="h-full">
-        <ArticleEditor
-          article={editingArticle || undefined}
-          onSave={handleSave}
+      <div className="fixed inset-0 bg-white z-50">
+        <UnifiedEditor
+          type="article"
+          initialTitle={editingArticle?.title || ''}
+          initialSlug={editingArticle?.slug || ''}
+          initialComponents={editingArticle?.components || []}
+          initialStatus={editingArticle?.status || 'draft'}
+          initialScheduledDate={editingArticle?.publishedAt}
+          onSave={(data) => {
+            handleSave({
+              ...editingArticle!,
+              id: editingArticle?.id || Date.now().toString(),
+              title: data.title,
+              slug: data.slug,
+              content: '', // Mantém compatibilidade
+              excerpt: editingArticle?.excerpt || '',
+              components: data.components,
+              author: editingArticle?.author || currentUser?.name || 'Admin',
+              status: data.status,
+              categories: editingArticle?.categories || [],
+              tags: editingArticle?.tags || [],
+              createdAt: editingArticle?.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              publishedAt: data.scheduledDate
+            });
+          }}
           onCancel={() => {
             setShowEditor(false);
             setEditingArticle(null);

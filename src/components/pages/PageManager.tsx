@@ -395,12 +395,11 @@ export function PageManager({ currentUser }: PageManagerProps) {
                       <BreadcrumbLink 
                         className="cursor-pointer hover:text-blue-600 transition-colors"
                         onClick={() => {
-                          // Correção: navegação correta
-                          if (index === 0 || index === 1 || index === 2) {
-                            // Início, Arquivos ou páginas → raiz
+                          // Se for "Início", "Arquivos" ou "páginas" → voltar para raiz
+                          if (index <= 2) {
                             setCurrentPath('');
                           } else {
-                            // Pasta específica → navegar
+                            // Pasta específica → navegar para aquele path
                             setCurrentPath(item.path);
                           }
                         }}

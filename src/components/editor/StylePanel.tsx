@@ -20,10 +20,23 @@ interface StylePanelProps {
 export function StylePanel({ component, onUpdate, onClose }: StylePanelProps) {
   const [activeTab, setActiveTab] = useState('styles');
 
+  // Verificação de segurança
+  if (!component) {
+    return null;
+  }
+
+  // Garantir que props e styles existem
+  if (!component.props) {
+    component.props = {};
+  }
+  if (!component.styles) {
+    component.styles = {};
+  }
+
   const updateStyle = (key: string, value: any) => {
     onUpdate({
       styles: {
-        ...component.styles,
+        ...(component.styles || {}),
         [key]: value
       }
     });
@@ -32,7 +45,7 @@ export function StylePanel({ component, onUpdate, onClose }: StylePanelProps) {
   const updateProp = (key: string, value: any) => {
     onUpdate({
       props: {
-        ...component.props,
+        ...(component.props || {}),
         [key]: value
       }
     });

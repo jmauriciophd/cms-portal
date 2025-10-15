@@ -23,8 +23,16 @@ import {
   User,
   FolderPlus,
   Link,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  Activity as ActivityIcon,
+  BarChart3,
+  Lock,
+  Shield
 } from 'lucide-react';
+import { usePermissions } from '../auth/PermissionsContext';
+import { useRealtimeStats, useRealtimeViewsHistory, ConnectionStatus } from '../hooks/useRealTimeData';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { toast } from 'sonner@2.0.3';
 
 interface Activity {
   id: string;
@@ -42,7 +50,7 @@ interface QuickAction {
   icon: any;
   action: () => void;
   color: string;
-  roles: string[];
+  requiredPermission: string;
 }
 
 interface DashboardHomeProps {
@@ -51,6 +59,8 @@ interface DashboardHomeProps {
 }
 
 export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
+  const { hasPermission, canViewWidget, currentUser: permUser } = usePermissions();
+  
   const [showTips, setShowTips] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [stats, setStats] = useState({
@@ -58,8 +68,22 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
     pages: { total: 0, published: 0, draft: 0 },
     files: { total: 0, images: 0 },
     users: { total: 0, active: 0 },
-    views: { total: 0, thisMonth: 0 }
   });
+
+  // Tempo Real - Estatísticas de Visualização
+  const realtimeEnabled = hasPermission('dashboard.realtime');
+  const { 
+    data: realtimeStats, 
+    isLoading: realtimeLoading, 
+    isConnected: realtimeConnected,
+    lastUpdate: realtimeLastUpdate,
+    refresh: refreshRealtime
+  } = useRealtimeStats(realtimeEnabled);
+
+  // Histórico de visualizações para gráfico
+  const {
+    history: viewsHistory
+  } = useRealtimeViewsHistory(10, realtimeEnabled);
 
   useEffect(() => {
     loadDashboardData();
@@ -92,192 +116,148 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
         total: users.length,
         active: users.filter((u: any) => u.status === 'active').length
       },
-      views: {
-        total: Math.floor(Math.random() * 10000) + 5000,
-        thisMonth: Math.floor(Math.random() * 2000) + 500
-      }
     });
 
-    // Generate activities from real data
-    const recentActivities: Activity[] = [];
-
-    // Add article activities
-    articles.slice(0, 2).forEach((article: any) => {
-      recentActivities.push({
-        id: `article-${article.id}`,
-        type: 'article',
-        action: article.status === 'published' ? 'published' : 'created',
-        title: article.title,
-        user: article.author || 'Sistema',
-        timestamp: article.updatedAt || article.createdAt,
-        status: article.status
-      });
-    });
-
-    // Add page activities
-    pages.slice(0, 1).forEach((page: any) => {
-      recentActivities.push({
-        id: `page-${page.id}`,
-        type: 'page',
-        action: page.status === 'published' ? 'published' : 'created',
-        title: page.title,
-        user: currentUser.name,
-        timestamp: page.updatedAt || page.createdAt,
-        status: page.status
-      });
-    });
-
-    // Add file activities
-    files.slice(0, 1).forEach((file: any) => {
-      recentActivities.push({
-        id: `file-${file.id}`,
-        type: 'file',
-        action: 'created',
-        title: file.name,
-        user: currentUser.name,
-        timestamp: file.createdAt,
-      });
-    });
-
-    // Add user activities if admin
-    if (currentUser.role === 'admin') {
-      users.slice(0, 1).forEach((user: any) => {
-        recentActivities.push({
-          id: `user-${user.id}`,
-          type: 'user',
-          action: 'created',
-          title: `Usuário ${user.name}`,
-          user: 'Sistema',
-          timestamp: user.createdAt,
-        });
-      });
+    // Load activities
+    const storedActivities = localStorage.getItem('dashboardActivities');
+    if (storedActivities) {
+      setActivities(JSON.parse(storedActivities));
+    } else {
+      // Generate mock activities
+      generateMockActivities();
     }
-
-    // Sort by timestamp and get last 5
-    recentActivities.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    setActivities(recentActivities.slice(0, 5));
   };
 
-  // Quick actions based on user role
-  const getQuickActions = (): QuickAction[] => {
-    const actions: QuickAction[] = [];
+  const generateMockActivities = () => {
+    const mockActivities: Activity[] = [
+      {
+        id: '1',
+        type: 'article',
+        action: 'published',
+        title: 'Nova política de privacidade atualizada',
+        user: 'Admin',
+        timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+        status: 'success'
+      },
+      {
+        id: '2',
+        type: 'page',
+        action: 'created',
+        title: 'Página de Contato',
+        user: 'Editor',
+        timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+      },
+      {
+        id: '3',
+        type: 'file',
+        action: 'updated',
+        title: 'banner-principal.jpg',
+        user: 'Admin',
+        timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+      },
+      {
+        id: '4',
+        type: 'user',
+        action: 'created',
+        title: 'Novo usuário: João Silva',
+        user: 'Admin',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      },
+      {
+        id: '5',
+        type: 'article',
+        action: 'updated',
+        title: 'Guia de início rápido',
+        user: 'Editor',
+        timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+      },
+    ];
 
-    // Actions for editors and admins
-    if (currentUser.role === 'editor' || currentUser.role === 'admin') {
-      actions.push({
-        title: 'Criar Matéria',
-        description: 'Nova matéria/notícia',
-        icon: FileText,
-        action: () => onNavigate('articles'),
-        color: 'bg-blue-500',
-        roles: ['editor', 'admin']
-      });
-    }
+    setActivities(mockActivities);
+    localStorage.setItem('dashboardActivities', JSON.stringify(mockActivities));
+  };
 
-    // Actions for admins only
-    if (currentUser.role === 'admin') {
-      actions.push(
-        {
-          title: 'Nova Página',
-          description: 'Criar página customizada',
-          icon: Layout,
-          action: () => onNavigate('pages'),
-          color: 'bg-green-500',
-          roles: ['admin']
-        },
-        {
-          title: 'Upload Arquivo',
-          description: 'Enviar imagens/arquivos',
-          icon: Upload,
-          action: () => onNavigate('files'),
-          color: 'bg-purple-500',
-          roles: ['admin']
-        },
-        {
-          title: 'Gerenciar Usuários',
-          description: 'Adicionar/editar usuários',
-          icon: Users,
-          action: () => onNavigate('users'),
-          color: 'bg-orange-500',
-          roles: ['admin']
-        }
-      );
-    }
-
-    // Actions for all users
-    actions.push({
+  const quickActions: QuickAction[] = [
+    {
+      title: 'Nova Matéria',
+      description: 'Criar um novo artigo ou notícia',
+      icon: FileText,
+      action: () => onNavigate('articles'),
+      color: 'bg-blue-500',
+      requiredPermission: 'content.create',
+    },
+    {
+      title: 'Nova Página',
+      description: 'Criar uma nova página no site',
+      icon: Layout,
+      action: () => onNavigate('pages'),
+      color: 'bg-purple-500',
+      requiredPermission: 'content.create',
+    },
+    {
+      title: 'Upload de Arquivo',
+      description: 'Enviar imagens e documentos',
+      icon: Upload,
+      action: () => onNavigate('files'),
+      color: 'bg-green-500',
+      requiredPermission: 'files.upload',
+    },
+    {
+      title: 'Gerenciar Usuários',
+      description: 'Adicionar e editar usuários',
+      icon: Users,
+      action: () => onNavigate('users'),
+      color: 'bg-orange-500',
+      requiredPermission: 'users.view',
+    },
+    {
       title: 'Configurações',
-      description: 'Personalizar sistema',
+      description: 'Ajustar configurações do sistema',
       icon: Settings,
       action: () => onNavigate('settings'),
       color: 'bg-gray-500',
-      roles: ['viewer', 'editor', 'admin']
-    });
+      requiredPermission: 'settings.view',
+    },
+    {
+      title: 'Novo Menu',
+      description: 'Criar estrutura de menu',
+      icon: MenuIcon,
+      action: () => onNavigate('menus'),
+      color: 'bg-indigo-500',
+      requiredPermission: 'content.create',
+    },
+  ];
 
-    return actions;
-  };
-
-  // Tips based on user role
-  const getTipsByRole = () => {
-    const baseTips = [
-      {
-        icon: '📝',
-        title: 'Editor Visual',
-        description: 'Use o editor drag-and-drop para criar páginas com mais de 50 componentes disponíveis.',
-        color: 'bg-blue-50'
-      },
-      {
-        icon: '🎨',
-        title: 'Templates Prontos',
-        description: 'Economize tempo usando templates pré-configurados para artigos e páginas.',
-        color: 'bg-purple-50'
-      }
-    ];
-
-    if (currentUser.role === 'editor' || currentUser.role === 'admin') {
-      baseTips.push({
-        icon: '📰',
-        title: 'Criar Matérias',
-        description: 'Use Ctrl+S para salvar rascunhos. O sistema salva automaticamente a cada 30 segundos.',
-        color: 'bg-green-50'
-      });
-    }
-
-    if (currentUser.role === 'admin') {
-      baseTips.push(
-        {
-          icon: '🔒',
-          title: 'Controle de Acesso',
-          description: 'Configure permissões granulares por usuário e defina papéis personalizados.',
-          color: 'bg-orange-50'
-        },
-        {
-          icon: '📊',
-          title: 'Versionamento',
-          description: 'Todo conteúdo possui histórico. Você pode restaurar versões anteriores a qualquer momento.',
-          color: 'bg-indigo-50'
-        },
-        {
-          icon: '🚀',
-          title: 'Deploy Automático',
-          description: 'Alterações são publicadas automaticamente. Use "Rascunho" para trabalhar sem publicar.',
-          color: 'bg-pink-50'
-        }
-      );
-    }
-
-    baseTips.push({
-      icon: '💡',
-      title: 'Atalhos de Teclado',
-      description: 'Pressione "?" em qualquer tela para ver os atalhos disponíveis.',
-      color: 'bg-yellow-50'
-    });
-
-    return baseTips;
-  };
+  const tips = [
+    {
+      id: '1',
+      category: 'Produtividade',
+      title: 'Use atalhos de teclado',
+      description: 'Pressione Ctrl+S para salvar rapidamente ao editar conteúdo.',
+      icon: Lightbulb,
+    },
+    {
+      id: '2',
+      category: 'SEO',
+      title: 'Otimize suas imagens',
+      description: 'Comprima imagens antes do upload para melhorar o tempo de carregamento.',
+      icon: Image,
+    },
+    {
+      id: '3',
+      category: 'Conteúdo',
+      title: 'Salve rascunhos frequentemente',
+      description: 'Use a função de auto-save ou salve manualmente para não perder trabalho.',
+      icon: FileText,
+    },
+    {
+      id: '4',
+      category: 'Organização',
+      title: 'Use pastas no gerenciador de arquivos',
+      description: 'Organize seus arquivos em pastas para facilitar a localização.',
+      icon: FolderPlus,
+    },
+  ];
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -287,343 +267,442 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
       case 'user': return User;
       case 'menu': return MenuIcon;
       case 'link': return Link;
-      default: return FileText;
+      default: return ActivityIcon;
     }
   };
 
-  const getActivityColor = (action: string) => {
+  const getActionColor = (action: string) => {
     switch (action) {
-      case 'published': return 'text-green-600';
-      case 'created': return 'text-blue-600';
-      case 'updated': return 'text-orange-600';
+      case 'created': return 'text-green-600';
+      case 'updated': return 'text-blue-600';
       case 'deleted': return 'text-red-600';
+      case 'published': return 'text-purple-600';
       default: return 'text-gray-600';
     }
   };
 
-  const getActivityLabel = (action: string) => {
+  const getActionText = (action: string) => {
     switch (action) {
-      case 'published': return 'Publicado';
-      case 'created': return 'Criado';
-      case 'updated': return 'Atualizado';
-      case 'deleted': return 'Excluído';
+      case 'created': return 'criou';
+      case 'updated': return 'atualizou';
+      case 'deleted': return 'excluiu';
+      case 'published': return 'publicou';
       default: return action;
     }
   };
 
-  const formatTimeAgo = (timestamp: string) => {
+  const formatRelativeTime = (timestamp: string) => {
     const now = new Date();
     const then = new Date(timestamp);
-    const diffInMs = now.getTime() - then.getTime();
-    const diffInMins = Math.floor(diffInMs / 60000);
-    const diffInHours = Math.floor(diffInMs / 3600000);
-    const diffInDays = Math.floor(diffInMs / 86400000);
+    const diffInSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
 
-    if (diffInMins < 1) return 'Agora mesmo';
-    if (diffInMins < 60) return `${diffInMins} min atrás`;
-    if (diffInHours < 24) return `${diffInHours}h atrás`;
-    if (diffInDays === 1) return 'Ontem';
-    if (diffInDays < 7) return `${diffInDays} dias atrás`;
-    return then.toLocaleDateString('pt-BR');
+    if (diffInSeconds < 60) return 'agora mesmo';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min atrás`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h atrás`;
+    return `${Math.floor(diffInSeconds / 86400)}d atrás`;
   };
 
-  const displayStats = [
-    { 
-      icon: FileText, 
-      label: 'Matérias', 
-      value: stats.articles.total.toString(), 
-      change: `${stats.articles.published} publicadas`, 
-      color: 'bg-blue-500',
-      trend: stats.articles.published > 0 ? '+' + Math.floor((stats.articles.published / stats.articles.total) * 100) + '%' : '0%'
-    },
-    { 
-      icon: Layout, 
-      label: 'Páginas', 
-      value: stats.pages.total.toString(), 
-      change: `${stats.pages.published} publicadas`, 
-      color: 'bg-green-500',
-      trend: stats.pages.published > 0 ? '+' + Math.floor((stats.pages.published / stats.pages.total) * 100) + '%' : '0%'
-    },
-    { 
-      icon: Image, 
-      label: 'Arquivos', 
-      value: stats.files.total.toString(), 
-      change: `${stats.files.images} imagens`, 
-      color: 'bg-purple-500',
-      trend: '+' + stats.files.total
-    },
-    { 
-      icon: Eye, 
-      label: 'Visualizações', 
-      value: (stats.views.total / 1000).toFixed(1) + 'k', 
-      change: `+${stats.views.thisMonth} este mês`, 
-      color: 'bg-orange-500',
-      trend: '+12%'
-    },
-  ];
+  // Preparar dados para o gráfico
+  const chartData = viewsHistory.slice().reverse().map((entry, index) => ({
+    time: new Date(entry.timestamp).toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }),
+    views: entry.views,
+    visitors: entry.visitors,
+  }));
 
-  const quickActions = getQuickActions();
-  const tips = getTipsByRole();
+  // Check if user has dashboard access
+  if (!hasPermission('dashboard.view')) {
+    return (
+      <div className="p-8">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-8 text-center">
+            <Lock className="w-16 h-16 text-red-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-red-900 mb-2">Acesso Negado</h2>
+            <p className="text-red-700">
+              Você não tem permissão para acessar o dashboard. 
+              Entre em contato com o administrador do sistema.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-8 space-y-6">
+      {/* Header com Role Badge */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-gray-900 mb-2">
-            Bem-vindo de volta, {currentUser.name}! 👋
+            Bem-vindo, {currentUser?.name || 'Usuário'}!
           </h1>
           <p className="text-gray-600">
-            Aqui está um resumo do seu portal • {currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'editor' ? 'Editor' : 'Visualizador'}
+            Aqui está um resumo das suas atividades e do sistema
           </p>
         </div>
-        
-        {/* Tips Button */}
-        <Button 
-          variant="outline" 
-          onClick={() => setShowTips(true)}
-          className="gap-2"
-        >
-          <Lightbulb className="w-4 h-4" />
-          Dicas Rápidas
-        </Button>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="gap-2">
+            <Shield className="w-3 h-3" />
+            {permUser?.role === 'admin' ? 'Administrador' : 
+             permUser?.role === 'editor' ? 'Editor' : 'Visualizador'}
+          </Badge>
+          {hasPermission('dashboard.quicktips') && (
+            <Button variant="outline" onClick={() => setShowTips(true)}>
+              <Lightbulb className="w-4 h-4 mr-2" />
+              Dicas Rápidas
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      {quickActions.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {quickActions.map((action, index) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={index}
-                  onClick={action.action}
-                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all hover:border-indigo-300 bg-white group"
-                >
-                  <div className={`${action.color} p-3 rounded-lg mb-3 w-fit group-hover:scale-110 transition-transform`}>
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                  <p className="font-medium text-gray-900 text-sm mb-1">
-                    {action.title}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {action.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Stats Cards - Widget */}
+      {canViewWidget('stats') && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Artigos */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Artigos
+              </CardTitle>
+              <FileText className="w-4 h-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{stats.articles.total}</div>
+              <div className="flex gap-4 mt-2 text-sm">
+                <span className="text-green-600">
+                  {stats.articles.published} publicados
+                </span>
+                <span className="text-gray-500">
+                  {stats.articles.draft} rascunhos
+                </span>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {displayStats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.label} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-3 rounded-lg ${stat.color}`}>
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {stat.trend}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</p>
-                  <p className="text-xs text-gray-500">{stat.change}</p>
+          {/* Páginas */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Páginas
+              </CardTitle>
+              <Layout className="w-4 h-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{stats.pages.total}</div>
+              <div className="flex gap-4 mt-2 text-sm">
+                <span className="text-green-600">
+                  {stats.pages.published} publicadas
+                </span>
+                <span className="text-gray-500">
+                  {stats.pages.draft} rascunhos
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Arquivos */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Arquivos
+              </CardTitle>
+              <Image className="w-4 h-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{stats.files.total}</div>
+              <div className="flex gap-4 mt-2 text-sm">
+                <span className="text-blue-600">
+                  {stats.files.images} imagens
+                </span>
+                <span className="text-gray-500">
+                  {stats.files.total - stats.files.images} outros
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Usuários */}
+          {hasPermission('users.view') && (
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Usuários
+                </CardTitle>
+                <Users className="w-4 h-4 text-gray-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">{stats.users.total}</div>
+                <div className="flex gap-4 mt-2 text-sm">
+                  <span className="text-green-600">
+                    {stats.users.active} ativos
+                  </span>
+                  <span className="text-gray-500">
+                    {stats.users.total - stats.users.active} inativos
+                  </span>
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          )}
+        </div>
+      )}
 
-      {/* Recent Activity & System Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity - 2 columns */}
-        <Card className="lg:col-span-2">
+      {/* Visualizações em Tempo Real - Widget */}
+      {canViewWidget('views') && hasPermission('dashboard.realtime') && (
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Atividade Recente
+                  <Eye className="w-5 h-5" />
+                  Visualizações em Tempo Real
+                  <Badge variant="secondary" className="ml-2">
+                    Atualização Automática
+                  </Badge>
                 </CardTitle>
-                <CardDescription>Últimas 5 atividades do sistema</CardDescription>
+                <CardDescription>
+                  Dados atualizados automaticamente a cada 3 segundos
+                </CardDescription>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => onNavigate('articles')}>
-                Ver todas
-              </Button>
+              <div className="flex items-center gap-3">
+                <ConnectionStatus 
+                  isConnected={realtimeConnected} 
+                  lastUpdate={realtimeLastUpdate} 
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={refreshRealtime}
+                  disabled={realtimeLoading}
+                >
+                  Atualizar
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            {activities.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Nenhuma atividade recente</p>
-                <p className="text-sm">Comece criando conteúdo!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {activities.map((activity) => {
-                  const Icon = getActivityIcon(activity.type);
-                  return (
-                    <div 
-                      key={activity.id} 
-                      className="flex items-start gap-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0 hover:bg-gray-50 p-2 rounded-lg transition-colors"
-                    >
-                      <div className={`p-2 rounded-lg bg-gray-100 ${getActivityColor(activity.action)}`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium text-gray-900 truncate">
-                            {activity.title}
-                          </p>
-                          {activity.status && (
-                            <Badge 
-                              variant={activity.status === 'published' ? 'default' : 'secondary'}
-                              className="text-xs"
-                            >
-                              {activity.status === 'published' ? 'Publicado' : 'Rascunho'}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {getActivityLabel(activity.action)} por {activity.user} • {formatTimeAgo(activity.timestamp)}
-                        </p>
-                      </div>
+            {realtimeStats && (
+              <>
+                {/* Stats */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-3xl font-bold text-blue-600">
+                      {realtimeStats.views.toLocaleString()}
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="text-sm text-gray-600 mt-1">Visualizações</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-3xl font-bold text-green-600">
+                      {realtimeStats.visitors.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">Visitantes</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-3xl font-bold text-purple-600">
+                      {realtimeStats.pageViews.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">Páginas Vistas</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-3xl font-bold text-orange-600">
+                      {Math.floor(realtimeStats.avgDuration / 60)}:{(realtimeStats.avgDuration % 60).toString().padStart(2, '0')}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">Duração Média</div>
+                  </div>
+                </div>
+
+                {/* Chart */}
+                {chartData.length > 0 && (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData}>
+                        <defs>
+                          <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="time" 
+                          stroke="#6b7280"
+                          fontSize={12}
+                        />
+                        <YAxis stroke="#6b7280" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'white', 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '6px'
+                          }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="views" 
+                          stroke="#3b82f6" 
+                          fillOpacity={1}
+                          fill="url(#colorViews)"
+                          strokeWidth={2}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="visitors" 
+                          stroke="#10b981" 
+                          fillOpacity={1}
+                          fill="url(#colorVisitors)"
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
+      )}
 
-        {/* System Status - 1 column */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              Status do Sistema
-            </CardTitle>
-            <CardDescription>Tudo funcionando perfeitamente</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-sm font-medium">Sistema Online</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Atividades Recentes - Widget */}
+        {canViewWidget('activity') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Atividades Recentes
+              </CardTitle>
+              <CardDescription>
+                Últimas ações realizadas no sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-96">
+                <div className="space-y-4">
+                  {activities.map((activity) => {
+                    const Icon = getActivityIcon(activity.type);
+                    return (
+                      <div key={activity.id} className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                          <Icon className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm">
+                            <span className="font-medium text-gray-900">{activity.user}</span>
+                            {' '}
+                            <span className={getActionColor(activity.action)}>
+                              {getActionText(activity.action)}
+                            </span>
+                            {' '}
+                            <span className="text-gray-600">{activity.title}</span>
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {formatRelativeTime(activity.timestamp)}
+                          </p>
+                        </div>
+                        {activity.status === 'success' && (
+                          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <CheckCircle className="w-4 h-4 text-green-600" />
-              </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
 
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                  <span className="text-sm font-medium">Backup Ativo</span>
-                </div>
-                <CheckCircle className="w-4 h-4 text-blue-600" />
+        {/* Atalhos Rápidos - Widget */}
+        {canViewWidget('shortcuts') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Ações Rápidas
+              </CardTitle>
+              <CardDescription>
+                Acesse rapidamente as funcionalidades mais usadas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {quickActions
+                  .filter(action => hasPermission(action.requiredPermission))
+                  .map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <Button
+                        key={action.title}
+                        variant="outline"
+                        className="h-auto flex flex-col items-start p-4 hover:shadow-md transition-all"
+                        onClick={action.action}
+                      >
+                        <div className={`w-10 h-10 rounded-lg ${action.color} flex items-center justify-center mb-3`}>
+                          <Icon className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900 mb-1">
+                            {action.title}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            {action.description}
+                          </div>
+                        </div>
+                      </Button>
+                    );
+                  })}
               </div>
-
-              <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full" />
-                  <span className="text-sm font-medium">Cache Otimizado</span>
-                </div>
-                <CheckCircle className="w-4 h-4 text-purple-600" />
-              </div>
-
-              <div className="pt-4 border-t">
-                <p className="text-xs text-gray-500 mb-2">Espaço em Uso</p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                  <div 
-                    className="bg-indigo-600 h-2 rounded-full transition-all" 
-                    style={{ width: `${Math.min((stats.files.total / 500) * 100, 100)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-600">
-                  {stats.files.total} de 500 arquivos ({Math.floor((stats.files.total / 500) * 100)}%)
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Tips Modal (Sheet) */}
-      <Sheet open={showTips} onOpenChange={setShowTips}>
-        <SheetContent className="w-[400px] sm:w-[540px]">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-yellow-500" />
-              Dicas Rápidas
-            </SheetTitle>
-            <SheetDescription>
-              Dicas personalizadas para o seu perfil: {currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'editor' ? 'Editor' : 'Visualizador'}
-            </SheetDescription>
-          </SheetHeader>
-
-          <ScrollArea className="h-[calc(100vh-120px)] mt-6 pr-4">
-            <div className="space-y-4">
-              {tips.map((tip, index) => (
-                <div key={index} className={`p-4 rounded-lg ${tip.color} border border-gray-200`}>
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{tip.icon}</span>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">
-                        {tip.title}
-                      </h3>
-                      <p className="text-sm text-gray-700">
-                        {tip.description}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Additional context-specific tip */}
-              <div className="p-4 rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">🎯</span>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      Seu Próximo Passo
-                    </h3>
-                    <p className="text-sm text-gray-700 mb-3">
-                      {currentUser.role === 'admin' 
-                        ? 'Configure os usuários e permissões do sistema para sua equipe.'
-                        : currentUser.role === 'editor'
-                        ? 'Crie sua primeira matéria usando o editor visual avançado.'
-                        : 'Explore o sistema e familiarize-se com as funcionalidades disponíveis.'}
-                    </p>
-                    {currentUser.role !== 'viewer' && (
-                      <Button 
-                        size="sm" 
-                        onClick={() => {
-                          setShowTips(false);
-                          onNavigate(currentUser.role === 'admin' ? 'users' : 'articles');
-                        }}
-                        className="w-full"
-                      >
-                        {currentUser.role === 'admin' ? 'Gerenciar Usuários' : 'Criar Matéria'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
+      {/* Dicas Rápidas - Sheet */}
+      {hasPermission('dashboard.quicktips') && (
+        <Sheet open={showTips} onOpenChange={setShowTips}>
+          <SheetContent className="w-full sm:max-w-xl">
+            <SheetHeader>
+              <SheetTitle>Dicas Rápidas</SheetTitle>
+              <SheetDescription>
+                Sugestões para melhorar sua produtividade no sistema
+              </SheetDescription>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(100vh-180px)] mt-6">
+              <div className="space-y-4 pr-4">
+                {tips.map((tip) => {
+                  const Icon = tip.icon;
+                  return (
+                    <Card key={tip.id}>
+                      <CardContent className="p-4">
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                            <Icon className="w-5 h-5 text-amber-600" />
+                          </div>
+                          <div className="flex-1">
+                            <Badge variant="secondary" className="mb-2 text-xs">
+                              {tip.category}
+                            </Badge>
+                            <h4 className="font-medium text-gray-900 mb-1">
+                              {tip.title}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {tip.description}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-            </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

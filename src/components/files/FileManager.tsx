@@ -28,7 +28,6 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '../ui/breadcrumb';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +40,14 @@ import { ImageEditor } from './ImageEditor';
 import { CopyFileDialog, MoveFileDialog, RenameFileDialog, DeleteFileDialog } from './FileOperations';
 import { VersionManager, useEditLock, useVersionControl } from '../version/VersionManager';
 import { FilePropertiesSheet } from './FilePropertiesSheet';
+import { Breadcrumb, BreadcrumbItem } from '../navigation/Breadcrumb';
+import { FolderNavigator } from '../navigation/FolderNavigator';
+import { NewItemMenu } from './NewItemMenu';
+import { TextEditor } from './TextEditor';
+import { FileListView } from './FileListView';
+import { Grid3x3, List, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { LinkManagementService } from '../../services/LinkManagementService';
 
 interface FileItem {
   id: string;
@@ -88,6 +94,12 @@ export function FileManager() {
   const [currentUser] = useState({ id: '1', name: 'Admin' }); // Mock user
   const [propertiesFile, setPropertiesFile] = useState<FileItem | null>(null);
   const [showProperties, setShowProperties] = useState(false);
+  const [showFolderNavigator, setShowFolderNavigator] = useState(false);
+  
+  // New states for enhanced features
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showTextEditor, setShowTextEditor] = useState(false);
+  const [editingTextFile, setEditingTextFile] = useState<FileItem | null>(null);
 
   useEffect(() => {
     loadFiles();
@@ -227,6 +239,77 @@ export function FileManager() {
     toast.success('Pasta criada com sucesso!');
   };
 
+  const handleNewTextFile = () => {
+    setEditingTextFile(null);
+    setShowTextEditor(true);
+  };
+
+  const handleSaveTextFile = (fileName: string, content: string) => {
+    const filePath = currentPath === '/' ? `/${fileName}` : `${currentPath}/${fileName}`;
+    
+    // Check if file already exists
+    const existingFile = files.find(f => f.path === filePath);
+    
+    if (existingFile && !editingTextFile) {
+      toast.error('Já existe um arquivo com este nome');
+      return;
+    }
+
+    if (editingTextFile) {
+      // Update existing file
+      const updatedFiles = files.map(f => 
+        f.id === editingTextFile.id 
+          ? { ...f, name: fileName, modifiedAt: new Date().toISOString(), url: content }
+          : f
+      );
+      saveFiles(updatedFiles);
+      toast.success('Arquivo atualizado com sucesso!');
+    } else {
+      // Create new file
+      const newFile: FileItem = {
+        id: Date.now().toString(),
+        name: fileName,
+        type: 'file',
+        path: filePath,
+        parent: currentPath,
+        size: new Blob([content]).size,
+        url: content, // Store text content in URL field
+        mimeType: 'text/plain',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString()
+      };
+      saveFiles([...files, newFile]);
+      toast.success('Arquivo criado com sucesso!');
+
+      // Gera link para arquivo de texto
+      LinkManagementService.createLinkForResource({
+        title: newFile.name,
+        slug: newFile.name.toLowerCase().replace(/\s+/g, '-'),
+        resourceType: 'file',
+        resourceId: newFile.id,
+        folder: currentPath,
+        description: `Arquivo: ${newFile.name}`,
+        metadata: {
+          mimeType: newFile.mimeType,
+          fileSize: newFile.size
+        }
+      });
+    }
+
+    setShowTextEditor(false);
+    setEditingTextFile(null);
+  };
+
+  const handleNewPage = () => {
+    // Navigate to PageManager to create a new page
+    // This will be handled by the Dashboard component
+    toast.info('Redirecionando para criação de página...');
+    // Emit event or callback to parent
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('navigate-to-pages'));
+    }, 500);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = e.target.files;
     if (!uploadedFiles || uploadedFiles.length === 0) return;
@@ -274,6 +357,22 @@ export function FileManager() {
         };
 
         newFiles.push(newFile);
+
+        // Gera link para arquivo enviado
+        const resourceType = file.type.startsWith('image/') ? 'image' : 
+                           file.type === 'application/pdf' ? 'pdf' : 'file';
+        LinkManagementService.createLinkForResource({
+          title: file.name,
+          slug: file.name.toLowerCase().replace(/\s+/g, '-').replace(/\.[^/.]+$/, ''),
+          resourceType: resourceType as any,
+          resourceId: newFile.id,
+          folder: currentPath,
+          description: `${resourceType === 'image' ? 'Imagem' : resourceType === 'pdf' ? 'PDF' : 'Arquivo'}: ${file.name}`,
+          metadata: {
+            mimeType: file.type,
+            fileSize: file.size
+          }
+        });
       } catch (error) {
         errors.push(`${file.name}: Erro ao processar arquivo`);
       }
@@ -311,6 +410,14 @@ export function FileManager() {
       const itemsToDelete = files.filter(f => f.path.startsWith(item.path));
       const updatedFiles = files.filter(f => !f.path.startsWith(item.path) && f.id !== item.id);
       saveFiles(updatedFiles);
+      
+      // Deleta links de todos os arquivos da pasta
+      itemsToDelete.forEach(f => {
+        if (f.type === 'file') {
+          LinkManagementService.deleteLinksForResource(f.id);
+        }
+      });
+      
       toast.success(`Pasta e ${itemsToDelete.length} item(s) excluídos`);
     } else {
       const updatedFiles = files.filter(f => f.id !== item.id);
@@ -344,6 +451,30 @@ export function FileManager() {
     setShowProperties(true);
   };
 
+  const getBreadcrumbItems = (): BreadcrumbItem[] => {
+    const items: BreadcrumbItem[] = [];
+    const parts = currentPath.split('/').filter(p => p);
+
+    // Home
+    items.push({
+      label: 'Início',
+      onClick: () => setCurrentPath('/')
+    });
+
+    // Build path progressively
+    let buildPath = '';
+    parts.forEach((part, index) => {
+      buildPath += '/' + part;
+      const pathToNavigate = buildPath;
+      items.push({
+        label: part,
+        onClick: () => setCurrentPath(pathToNavigate)
+      });
+    });
+
+    return items;
+  };
+
   const handleDownload = (item: FileItem) => {
     if (!item.url) return;
     
@@ -367,6 +498,27 @@ export function FileManager() {
   const handleEditImage = (item: FileItem) => {
     setSelectedImage(item);
     setShowImageEditor(true);
+  };
+
+  const handleOpenTextFile = (item: FileItem) => {
+    setEditingTextFile({
+      ...item,
+      content: item.url || '' // URL field stores text content
+    });
+    setShowTextEditor(true);
+  };
+
+  const handleFileClick = (item: FileItem) => {
+    if (item.type === 'folder') {
+      handleOpenFolder(item);
+    } else if (isImage(item)) {
+      handleViewImage(item);
+    } else if (item.mimeType === 'text/plain' || item.name.endsWith('.txt')) {
+      handleOpenTextFile(item);
+    } else {
+      // Other file types - just show a message
+      toast.info(`Arquivo: ${item.name} (${item.mimeType || 'tipo desconhecido'})`);
+    }
   };
 
   const handleSaveEditedImage = (editedImageUrl: string, editedImageName: string) => {
@@ -461,15 +613,45 @@ export function FileManager() {
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
-        <div>
+        <div className="flex-1">
           <h1 className="text-gray-900 mb-2">Gerenciamento de Arquivos</h1>
           <p className="text-gray-600">Organize suas imagens e documentos com segurança</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowNewFolder(true)}>
-            <FolderPlus className="w-4 h-4 mr-2" />
-            Nova Pasta
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFolderNavigator(!showFolderNavigator)}
+          >
+            <FolderOpen className="w-4 h-4 mr-2" />
+            {showFolderNavigator ? 'Ocultar' : 'Mostrar'} Navegador
           </Button>
+          
+          {/* View Mode Toggle */}
+          <div className="flex border rounded-lg overflow-hidden">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="rounded-none"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="rounded-none"
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <NewItemMenu
+            onNewFolder={() => setShowNewFolder(true)}
+            onNewTextFile={handleNewTextFile}
+            onNewPage={handleNewPage}
+          />
+          
           <label className="cursor-pointer">
             <Button disabled={isUploading}>
               <Upload className="w-4 h-4 mr-2" />
@@ -504,40 +686,21 @@ export function FileManager() {
       )}
 
       {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-4 mb-6">
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink 
-                onClick={() => navigateToPath(-1)}
-                className="cursor-pointer flex items-center gap-1"
-              >
-                <Home className="w-4 h-4" />
-                Root
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            {pathSegments.map((segment, index) => (
-              <div key={index} className="flex items-center">
-                <BreadcrumbSeparator>
-                  <ChevronRight className="w-4 h-4" />
-                </BreadcrumbSeparator>
-                <BreadcrumbItem>
-                  {index === pathSegments.length - 1 ? (
-                    <BreadcrumbPage>{segment}</BreadcrumbPage>
-                  ) : (
-                    <BreadcrumbLink 
-                      onClick={() => navigateToPath(index)}
-                      className="cursor-pointer"
-                    >
-                      {segment}
-                    </BreadcrumbLink>
-                  )}
-                </BreadcrumbItem>
-              </div>
-            ))}
-          </BreadcrumbList>
-        </Breadcrumb>
+      <div className="mb-4">
+        <Breadcrumb items={getBreadcrumbItems()} />
       </div>
+
+      {/* Folder Navigator (collapsible) */}
+      {showFolderNavigator && (
+        <div className="mb-4">
+          <FolderNavigator
+            files={files}
+            currentPath={currentPath}
+            onNavigate={setCurrentPath}
+            selectedPath={currentPath}
+          />
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-6">
@@ -552,16 +715,42 @@ export function FileManager() {
         </div>
       </div>
 
-      {/* Files Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
-        {currentFiles.map((item) => (
-          <Card key={item.id} className="group hover:shadow-lg transition-all">
-            <CardContent className="p-4">
-              <div 
-                className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center relative overflow-hidden cursor-pointer"
-                onClick={() => item.type === 'folder' ? handleOpenFolder(item) : isImage(item) ? handleViewImage(item) : null}
-              >
-                {getFileIcon(item)}
+      {/* Files Display - Grid or List */}
+      {viewMode === 'list' ? (
+        <FileListView
+          files={currentFiles}
+          onFolderClick={handleOpenFolder}
+          onFileClick={handleFileClick}
+          onContextMenu={(file, action) => {
+            if (action === 'download') handleDownload(file);
+            else if (action === 'rename') {
+              setOperationFile(file);
+              setOperationType('rename');
+            }
+            else if (action === 'move') {
+              setOperationFile(file);
+              setOperationType('move');
+            }
+            else if (action === 'copy') {
+              setOperationFile(file);
+              setOperationType('copy');
+            }
+            else if (action === 'delete') {
+              setOperationFile(file);
+              setOperationType('delete');
+            }
+          }}
+        />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
+          {currentFiles.map((item) => (
+            <Card key={item.id} className="group hover:shadow-lg transition-all">
+              <CardContent className="p-4">
+                <div 
+                  className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center relative overflow-hidden cursor-pointer"
+                  onClick={() => handleFileClick(item)}
+                >
+                  {getFileIcon(item)}
                 
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                   {item.type === 'folder' ? (
@@ -701,7 +890,8 @@ export function FileManager() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {currentFiles.length === 0 && (
         <div className="text-center py-12">
@@ -929,6 +1119,23 @@ export function FileManager() {
         open={showProperties}
         onOpenChange={setShowProperties}
       />
+
+      {/* Text Editor */}
+      {showTextEditor && (
+        <TextEditor
+          file={editingTextFile ? {
+            id: editingTextFile.id,
+            name: editingTextFile.name,
+            content: editingTextFile.url || ''
+          } : undefined}
+          currentPath={currentPath}
+          onSave={handleSaveTextFile}
+          onClose={() => {
+            setShowTextEditor(false);
+            setEditingTextFile(null);
+          }}
+        />
+      )}
     </div>
   );
 }

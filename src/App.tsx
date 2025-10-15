@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { LoginForm } from './components/auth/LoginForm';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { PublicSite } from './components/public/PublicSite';
+import { PermissionsProvider } from './components/auth/PermissionsContext';
 import { Toaster } from './components/ui/sonner';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -66,9 +67,10 @@ function AdminDashboard() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-gray-50">
-        <Routes>
+    <PermissionsProvider>
+      <BrowserRouter>
+        <div className="min-h-screen bg-gray-50">
+          <Routes>
           {/* Rota pública - Site público sem botão de login */}
           <Route path="/" element={<PublicSite />} />
           
@@ -101,5 +103,6 @@ export default function App() {
         <Toaster />
       </div>
     </BrowserRouter>
+    </PermissionsProvider>
   );
 }

@@ -1,630 +1,890 @@
+/**
+ * GERENCIADOR DE LINKS
+ * 
+ * Interface completa para visualizar, criar, editar e verificar links
+ * do sistema, incluindo links internos e externos.
+ */
+
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { 
-  ExternalLink, 
-  Link as LinkIcon, 
-  Copy, 
-  Trash, 
-  Plus,
-  Globe,
-  Lock,
-  Search,
-  FileText,
-  Folder,
-  Eye
-} from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Switch } from '../ui/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+import {
+  Link as LinkIcon,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  File,
+  Plus,
+  Search,
+  RefreshCw,
+  Download,
+  Upload,
+  Trash2,
+  Edit,
+  Copy,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  TrendingUp,
+  Filter,
+  Eye,
+  MoreVertical,
+  Share2,
+  BarChart3,
+  Globe,
+  Home,
+  ChevronRight
+} from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { LinkManagementService, Link } from '../../services/LinkManagementService';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '../ui/breadcrumb';
+import { usePermissions } from '../auth/PermissionsContext';
 
-interface Link {
-  id: string;
-  title: string;
-  path: string;
-  type: 'internal' | 'external';
-  category?: string;
-  description?: string;
-  createdAt: string;
+interface LinkManagerProps {
+  currentUser: any;
 }
 
-interface LinkSettings {
-  internalBase: string;
-  externalBase: string;
-}
-
-export function LinkManager() {
+export function LinkManager({ currentUser }: LinkManagerProps) {
+  const { can } = usePermissions();
   const [links, setLinks] = useState<Link[]>([]);
-  const [settings, setSettings] = useState<LinkSettings>({
-    internalBase: 'https://www.interno.stj.jus.br',
-    externalBase: 'https://www.stj.jus.br'
-  });
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredLinks, setFilteredLinks] = useState<Link[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'internal' | 'external'>('all');
-  
-  // Form states
-  const [newLinkTitle, setNewLinkTitle] = useState('');
-  const [newLinkPath, setNewLinkPath] = useState('');
-  const [newLinkType, setNewLinkType] = useState<'internal' | 'external'>('external');
-  const [newLinkCategory, setNewLinkCategory] = useState('');
-  const [newLinkDescription, setNewLinkDescription] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | Link['status']>('all');
+  const [filterResource, setFilterResource] = useState<'all' | Link['resourceType']>('all');
+  const [selectedLink, setSelectedLink] = useState<Link | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
-  // Load data from localStorage
+  // Novo link
+  const [newLink, setNewLink] = useState({
+    title: '',
+    url: '',
+    description: '',
+    tags: '',
+    autoCheck: true,
+    checkFrequency: 24
+  });
+
   useEffect(() => {
     loadLinks();
-    loadSettings();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [links, searchTerm, filterType, filterStatus, filterResource]);
+
   const loadLinks = () => {
-    const stored = localStorage.getItem('links');
-    if (stored) {
-      setLinks(JSON.parse(stored));
+    const allLinks = LinkManagementService.getAllLinks();
+    setLinks(allLinks);
+  };
+
+  const applyFilters = () => {
+    let filtered = [...links];
+
+    // Filtro de busca
+    if (searchTerm) {
+      filtered = LinkManagementService.searchLinks(searchTerm);
     }
-  };
 
-  const loadSettings = () => {
-    const stored = localStorage.getItem('linkSettings');
-    if (stored) {
-      setSettings(JSON.parse(stored));
-    } else {
-      // Salvar configurações padrão
-      localStorage.setItem('linkSettings', JSON.stringify(settings));
+    // Filtro de tipo
+    if (filterType !== 'all') {
+      filtered = filtered.filter(l => l.type === filterType);
     }
+
+    // Filtro de status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(l => l.status === filterStatus);
+    }
+
+    // Filtro de recurso
+    if (filterResource !== 'all') {
+      filtered = filtered.filter(l => l.resourceType === filterResource);
+    }
+
+    setFilteredLinks(filtered);
   };
 
-  const saveLinks = (updatedLinks: Link[]) => {
-    localStorage.setItem('links', JSON.stringify(updatedLinks));
-    setLinks(updatedLinks);
-  };
-
-  const saveSettings = (updatedSettings: LinkSettings) => {
-    localStorage.setItem('linkSettings', JSON.stringify(updatedSettings));
-    setSettings(updatedSettings);
-    toast.success('Configurações salvas com sucesso!');
-  };
-
-  const generateFullUrl = (link: Link): string => {
-    const baseUrl = link.type === 'internal' ? settings.internalBase : settings.externalBase;
-    const path = link.path.startsWith('/') ? link.path : `/${link.path}`;
-    return `${baseUrl}${path}`;
-  };
-
-  const createLink = () => {
-    if (!newLinkTitle.trim() || !newLinkPath.trim()) {
-      toast.error('Preencha o título e o caminho do link');
+  const handleCreateExternalLink = () => {
+    if (!newLink.title || !newLink.url) {
+      toast.error('Preencha título e URL');
       return;
     }
 
-    const newLink: Link = {
-      id: `link-${Date.now()}`,
-      title: newLinkTitle,
-      path: newLinkPath,
-      type: newLinkType,
-      category: newLinkCategory || undefined,
-      description: newLinkDescription || undefined,
-      createdAt: new Date().toISOString()
+    const link = LinkManagementService.createExternalLink({
+      title: newLink.title,
+      url: newLink.url,
+      description: newLink.description || undefined,
+      tags: newLink.tags ? newLink.tags.split(',').map(t => t.trim()) : undefined,
+      autoCheck: newLink.autoCheck,
+      checkFrequency: newLink.checkFrequency
+    });
+
+    toast.success('Link criado com sucesso!');
+    setShowAddDialog(false);
+    setNewLink({
+      title: '',
+      url: '',
+      description: '',
+      tags: '',
+      autoCheck: true,
+      checkFrequency: 24
+    });
+    loadLinks();
+  };
+
+  const handleUpdateLink = () => {
+    if (!selectedLink) return;
+
+    LinkManagementService.saveLink(selectedLink);
+    toast.success('Link atualizado!');
+    setShowEditDialog(false);
+    setSelectedLink(null);
+    loadLinks();
+  };
+
+  const handleDeleteLink = () => {
+    if (!selectedLink) return;
+
+    LinkManagementService.deleteLink(selectedLink.id);
+    toast.success('Link excluído!');
+    setShowDeleteDialog(false);
+    setSelectedLink(null);
+    loadLinks();
+  };
+
+  const handleCheckLink = async (linkId: string) => {
+    const link = links.find(l => l.id === linkId);
+    if (!link || link.type !== 'external') {
+      toast.error('Apenas links externos podem ser verificados');
+      return;
+    }
+
+    setIsChecking(true);
+    try {
+      const result = await LinkManagementService.checkExternalLink(linkId);
+      
+      if (result.status === 'active') {
+        toast.success('Link está ativo!');
+      } else if (result.status === 'redirect') {
+        toast.info(`Link redireciona para: ${result.redirectTo}`);
+      } else {
+        toast.error(`Link quebrado: ${result.errorMessage}`);
+      }
+      
+      loadLinks();
+    } catch (error) {
+      toast.error('Erro ao verificar link');
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleCheckAllLinks = async () => {
+    setIsChecking(true);
+    toast.info('Verificando todos os links externos...');
+    
+    try {
+      const results = await LinkManagementService.checkAllExternalLinks();
+      const broken = results.filter(r => r.status === 'broken').length;
+      const active = results.filter(r => r.status === 'active').length;
+      
+      toast.success(`Verificação concluída! ${active} ativos, ${broken} quebrados`);
+      loadLinks();
+    } catch (error) {
+      toast.error('Erro ao verificar links');
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleCopyLink = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success('Link copiado!');
+  };
+
+  const handleExportLinks = () => {
+    const json = LinkManagementService.exportLinks();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `links-export-${new Date().toISOString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Links exportados!');
+  };
+
+  const handleImportLinks = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const json = e.target?.result as string;
+      const result = LinkManagementService.importLinks(json);
+      
+      if (result.success) {
+        toast.success(`${result.count} links importados!`);
+        if (result.errors.length > 0) {
+          toast.warning(`${result.errors.length} erros encontrados`);
+        }
+        loadLinks();
+      } else {
+        toast.error('Erro ao importar links');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const getStatusIcon = (status: Link['status']) => {
+    switch (status) {
+      case 'active':
+        return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+      case 'broken':
+        return <XCircle className="w-4 h-4 text-red-600" />;
+      case 'pending':
+        return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+      case 'redirect':
+        return <TrendingUp className="w-4 h-4 text-blue-600" />;
+    }
+  };
+
+  const getStatusBadge = (status: Link['status']) => {
+    const variants: Record<Link['status'], any> = {
+      active: 'default',
+      broken: 'destructive',
+      pending: 'secondary',
+      redirect: 'outline'
     };
 
-    saveLinks([...links, newLink]);
-    resetForm();
-    setShowCreateDialog(false);
-    toast.success('Link criado com sucesso!');
+    const labels: Record<Link['status'], string> = {
+      active: 'Ativo',
+      broken: 'Quebrado',
+      pending: 'Pendente',
+      redirect: 'Redirecionamento'
+    };
+
+    return (
+      <Badge variant={variants[status]} className="flex items-center gap-1">
+        {getStatusIcon(status)}
+        {labels[status]}
+      </Badge>
+    );
   };
 
-  const deleteLink = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este link?')) {
-      saveLinks(links.filter(l => l.id !== id));
-      toast.success('Link excluído com sucesso!');
+  const getResourceIcon = (resourceType: Link['resourceType']) => {
+    switch (resourceType) {
+      case 'page':
+        return <FileText className="w-4 h-4" />;
+      case 'article':
+        return <FileText className="w-4 h-4 text-green-600" />;
+      case 'image':
+        return <ImageIcon className="w-4 h-4 text-purple-600" />;
+      case 'pdf':
+        return <File className="w-4 h-4 text-red-600" />;
+      case 'file':
+        return <File className="w-4 h-4" />;
+      default:
+        return <LinkIcon className="w-4 h-4" />;
     }
   };
 
-  const copyUrl = (link: Link) => {
-    const fullUrl = generateFullUrl(link);
-    navigator.clipboard.writeText(fullUrl)
-      .then(() => {
-        toast.success('URL copiada para a área de transferência!');
-      })
-      .catch(() => {
-        toast.error('Não foi possível copiar a URL');
-      });
-  };
+  const stats = LinkManagementService.getStatistics();
 
-  const resetForm = () => {
-    setNewLinkTitle('');
-    setNewLinkPath('');
-    setNewLinkType('external');
-    setNewLinkCategory('');
-    setNewLinkDescription('');
-  };
-
-  // Integração com arquivos e páginas
-  const importFromFiles = () => {
-    const files = JSON.parse(localStorage.getItem('files') || '[]');
-    const newLinks: Link[] = [];
-
-    files.forEach((file: any) => {
-      if (file.type !== 'folder') {
-        const link: Link = {
-          id: `link-file-${file.id}`,
-          title: file.name,
-          path: file.path,
-          type: 'external',
-          category: 'Arquivos',
-          description: `Arquivo importado: ${file.type}`,
-          createdAt: new Date().toISOString()
-        };
-        newLinks.push(link);
-      }
-    });
-
-    if (newLinks.length > 0) {
-      saveLinks([...links, ...newLinks]);
-      toast.success(`${newLinks.length} arquivo(s) importado(s) como links`);
-    } else {
-      toast.info('Nenhum arquivo encontrado para importar');
-    }
-  };
-
-  const importFromPages = () => {
-    const pages = JSON.parse(localStorage.getItem('pages') || '[]');
-    const newLinks: Link[] = [];
-
-    pages.forEach((page: any) => {
-      const link: Link = {
-        id: `link-page-${page.id}`,
-        title: page.title,
-        path: `/${page.slug}`,
-        type: 'external',
-        category: 'Páginas',
-        description: `Página: ${page.status}`,
-        createdAt: new Date().toISOString()
-      };
-      newLinks.push(link);
-    });
-
-    if (newLinks.length > 0) {
-      saveLinks([...links, ...newLinks]);
-      toast.success(`${newLinks.length} página(s) importada(s) como links`);
-    } else {
-      toast.info('Nenhuma página encontrada para importar');
-    }
-  };
-
-  // Filtrar links
-  const filteredLinks = links.filter(link => {
-    const matchesSearch = link.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         link.path.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === 'all' || link.type === filterType;
-    return matchesSearch && matchesType;
-  });
-
-  // Agrupar por categoria
-  const groupedLinks = filteredLinks.reduce((acc, link) => {
-    const category = link.category || 'Sem categoria';
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(link);
-    return acc;
-  }, {} as { [key: string]: Link[] });
+  if (!can('links', 'view')) {
+    return (
+      <div className="p-8">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Acesso Negado</h3>
+            <p className="text-gray-600">Você não tem permissão para visualizar links.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-gray-900 mb-2">Gerenciamento de Links</h1>
-          <p className="text-gray-600">Configure links internos e externos do sistema</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={importFromFiles}>
-            <Folder className="w-4 h-4 mr-2" />
-            Importar Arquivos
-          </Button>
-          <Button variant="outline" onClick={importFromPages}>
-            <FileText className="w-4 h-4 mr-2" />
-            Importar Páginas
-          </Button>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Link
-          </Button>
-        </div>
-      </div>
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-gray-900 mb-2">Gerenciamento de Links</h1>
+            <p className="text-gray-600">Gerencie todos os links internos e externos do sistema</p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportLinks}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Exportar
+            </Button>
+            
+            <label>
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImportLinks}
+              />
+              <Button variant="outline" as="span">
+                <Upload className="w-4 h-4 mr-2" />
+                Importar
+              </Button>
+            </label>
 
-      <Tabs defaultValue="links" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="links">
-            <LinkIcon className="w-4 h-4 mr-2" />
-            Links
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Globe className="w-4 h-4 mr-2" />
-            Configurações
-          </TabsTrigger>
-        </TabsList>
+            {can('links', 'create') && (
+              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Novo Link Externo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Criar Link Externo</DialogTitle>
+                    <DialogDescription>
+                      Adicione um link externo para monitoramento
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Título *</Label>
+                      <Input
+                        placeholder="Nome do link"
+                        value={newLink.title}
+                        onChange={(e) => setNewLink({ ...newLink, title: e.target.value })}
+                      />
+                    </div>
 
-        {/* Tab: Links */}
-        <TabsContent value="links" className="space-y-6">
-          {/* Filtros */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Buscar links..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
+                    <div>
+                      <Label>URL *</Label>
+                      <Input
+                        placeholder="https://exemplo.com"
+                        value={newLink.url}
+                        onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Descrição</Label>
+                      <Textarea
+                        placeholder="Descrição do link"
+                        value={newLink.description}
+                        onChange={(e) => setNewLink({ ...newLink, description: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Tags (separadas por vírgula)</Label>
+                      <Input
+                        placeholder="tag1, tag2, tag3"
+                        value={newLink.tags}
+                        onChange={(e) => setNewLink({ ...newLink, tags: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label>Verificar automaticamente</Label>
+                      <Switch
+                        checked={newLink.autoCheck}
+                        onCheckedChange={(checked) => setNewLink({ ...newLink, autoCheck: checked })}
+                      />
+                    </div>
+
+                    {newLink.autoCheck && (
+                      <div>
+                        <Label>Frequência de verificação (horas)</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={newLink.checkFrequency}
+                          onChange={(e) => setNewLink({ ...newLink, checkFrequency: parseInt(e.target.value) })}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-                <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os tipos</SelectItem>
-                    <SelectItem value="external">Externos</SelectItem>
-                    <SelectItem value="internal">Internos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Lista de Links */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {Object.entries(groupedLinks).map(([category, categoryLinks]) => (
-              <div key={category} className="space-y-3">
-                <h3 className="flex items-center gap-2 text-gray-700">
-                  <Folder className="w-4 h-4" />
-                  {category}
-                  <Badge variant="secondary">{categoryLinks.length}</Badge>
-                </h3>
-                
-                {categoryLinks.map(link => (
-                  <Card key={link.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {link.type === 'internal' ? (
-                              <Lock className="w-4 h-4 text-orange-600" />
-                            ) : (
-                              <Globe className="w-4 h-4 text-blue-600" />
-                            )}
-                            <span className="font-medium">{link.title}</span>
-                            <Badge variant={link.type === 'internal' ? 'default' : 'secondary'}>
-                              {link.type === 'internal' ? 'Interno' : 'Externo'}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-600 font-mono break-all">
-                            {generateFullUrl(link)}
-                          </p>
-                          {link.description && (
-                            <p className="text-xs text-gray-500 mt-1">{link.description}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-1 mt-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyUrl(link)}
-                        >
-                          <Copy className="w-3 h-3 mr-1" />
-                          Copiar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(generateFullUrl(link), '_blank')}
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          Abrir
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteLink(link.id)}
-                          className="text-red-600"
-                        >
-                          <Trash className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ))}
-
-            {filteredLinks.length === 0 && (
-              <div className="col-span-2">
-                <Card>
-                  <CardContent className="p-8 text-center text-gray-500">
-                    <LinkIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>Nenhum link encontrado</p>
-                    <Button 
-                      variant="outline" 
-                      className="mt-4"
-                      onClick={() => setShowCreateDialog(true)}
-                    >
-                      Criar primeiro link
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                      Cancelar
                     </Button>
-                  </CardContent>
-                </Card>
-              </div>
+                    <Button onClick={handleCreateExternalLink}>
+                      Criar Link
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
-        </TabsContent>
+        </div>
 
-        {/* Tab: Configurações */}
-        <TabsContent value="settings" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Configurações de URL Base */}
-            <Card>
-              <CardHeader>
-                <CardTitle>URLs Base do Sistema</CardTitle>
-                <CardDescription>
-                  Configure as URLs base para links internos e externos
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="external-base">
-                    <Globe className="w-4 h-4 inline mr-2" />
-                    URL Base Externa (Público)
-                  </Label>
-                  <Input
-                    id="external-base"
-                    value={settings.externalBase}
-                    onChange={(e) => setSettings({ ...settings, externalBase: e.target.value })}
-                    placeholder="https://www.stj.jus.br"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    URL acessível publicamente pela internet
-                  </p>
-                </div>
+        {/* Breadcrumb */}
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink className="flex items-center gap-1 cursor-pointer">
+                <Home className="w-4 h-4" />
+                Início
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator>
+              <ChevronRight className="w-4 h-4" />
+            </BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbPage>Links</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </div>
 
-                <div>
-                  <Label htmlFor="internal-base">
-                    <Lock className="w-4 h-4 inline mr-2" />
-                    URL Base Interna (Rede Interna)
-                  </Label>
-                  <Input
-                    id="internal-base"
-                    value={settings.internalBase}
-                    onChange={(e) => setSettings({ ...settings, internalBase: e.target.value })}
-                    placeholder="https://www.interno.stj.jus.br"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    URL acessível apenas na rede interna
-                  </p>
-                </div>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Total de Links</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <LinkIcon className="w-8 h-8 text-blue-600" />
+            </div>
+            <div className="flex items-center gap-2 mt-2 text-xs text-gray-600">
+              <Badge variant="secondary">{stats.internal} internos</Badge>
+              <Badge variant="outline">{stats.external} externos</Badge>
+            </div>
+          </CardContent>
+        </Card>
 
-                <Button onClick={() => saveSettings(settings)}>
-                  Salvar Configurações
-                </Button>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-green-600" />
+                  Ativos
+                </span>
+                <span className="font-semibold">{stats.active}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1">
+                  <XCircle className="w-3 h-3 text-red-600" />
+                  Quebrados
+                </span>
+                <span className="font-semibold">{stats.broken}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Preview das URLs */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Preview de URLs</CardTitle>
-                <CardDescription>
-                  Veja como as URLs serão geradas
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="flex items-center gap-2 mb-2">
-                    <Globe className="w-4 h-4 text-blue-600" />
-                    Exemplo: Link Externo
-                  </Label>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <p className="text-sm font-mono break-all">
-                      {settings.externalBase}/institucional/sobre
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Acessível por qualquer usuário na internet
-                  </p>
-                </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Por Tipo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span>Páginas:</span>
+                <span className="font-semibold">{stats.byResourceType.page}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Matérias:</span>
+                <span className="font-semibold">{stats.byResourceType.article}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Imagens:</span>
+                <span className="font-semibold">{stats.byResourceType.image}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>PDFs:</span>
+                <span className="font-semibold">{stats.byResourceType.pdf}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-                <div>
-                  <Label className="flex items-center gap-2 mb-2">
-                    <Lock className="w-4 h-4 text-orange-600" />
-                    Exemplo: Link Interno
-                  </Label>
-                  <div className="bg-orange-50 p-3 rounded border border-orange-200">
-                    <p className="text-sm font-mono break-all">
-                      {settings.internalBase}/sistemas/administrativo
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Acessível apenas por usuários na rede interna
-                  </p>
-                </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Analytics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-2xl font-bold">{stats.totalClicks}</div>
+              <BarChart3 className="w-8 h-8 text-purple-600" />
+            </div>
+            <p className="text-xs text-gray-600">Total de cliques registrados</p>
+            {stats.needingCheck > 0 && (
+              <Badge variant="secondary" className="mt-2">
+                {stats.needingCheck} precisam verificação
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                  <h4 className="font-medium text-blue-900 mb-2">💡 Como funciona</h4>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Links <strong>externos</strong> usam: {settings.externalBase}</li>
-                    <li>• Links <strong>internos</strong> usam: {settings.internalBase}</li>
-                    <li>• O caminho é anexado automaticamente</li>
-                    <li>• URLs são geradas com base na estrutura de pastas</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Filters and Search */}
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[300px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar links..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
 
-            {/* Estatísticas */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Estatísticas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <LinkIcon className="w-4 h-4 text-gray-600" />
-                      <span className="text-sm text-gray-600">Total</span>
-                    </div>
-                    <p className="text-2xl font-bold">{links.length}</p>
-                  </div>
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Globe className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm text-blue-600">Externos</span>
-                    </div>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {links.filter(l => l.type === 'external').length}
-                    </p>
-                  </div>
-                  <div className="bg-orange-50 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Lock className="w-4 h-4 text-orange-600" />
-                      <span className="text-sm text-orange-600">Internos</span>
-                    </div>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {links.filter(l => l.type === 'internal').length}
-                    </p>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Folder className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-green-600">Categorias</span>
-                    </div>
-                    <p className="text-2xl font-bold text-green-600">
-                      {Object.keys(groupedLinks).length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="internal">Internos</SelectItem>
+                <SelectItem value="external">Externos</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos status</SelectItem>
+                <SelectItem value="active">Ativos</SelectItem>
+                <SelectItem value="broken">Quebrados</SelectItem>
+                <SelectItem value="pending">Pendentes</SelectItem>
+                <SelectItem value="redirect">Redirecionando</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterResource} onValueChange={(value: any) => setFilterResource(value)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos recursos</SelectItem>
+                <SelectItem value="page">Páginas</SelectItem>
+                <SelectItem value="article">Matérias</SelectItem>
+                <SelectItem value="image">Imagens</SelectItem>
+                <SelectItem value="pdf">PDFs</SelectItem>
+                <SelectItem value="file">Arquivos</SelectItem>
+                <SelectItem value="custom">Customizados</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              onClick={handleCheckAllLinks}
+              disabled={isChecking}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
+              Verificar Todos
+            </Button>
           </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
 
-      {/* Create Link Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Criar Novo Link</DialogTitle>
-            <DialogDescription>
-              Configure um link interno ou externo para o sistema
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="link-title">Título *</Label>
-              <Input
-                id="link-title"
-                value={newLinkTitle}
-                onChange={(e) => setNewLinkTitle(e.target.value)}
-                placeholder="Ex: Portal Principal, Sistema Administrativo"
-              />
+      {/* Links Table */}
+      <Card>
+        <CardContent className="p-0">
+          {filteredLinks.length === 0 ? (
+            <div className="p-12 text-center">
+              <LinkIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhum link encontrado</p>
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Link
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tipo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Recurso
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Cliques
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredLinks.map((link) => (
+                    <tr key={link.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-3">
+                          {link.type === 'internal' ? (
+                            <LinkIcon className="w-5 h-5 text-blue-600 mt-0.5" />
+                          ) : (
+                            <ExternalLink className="w-5 h-5 text-purple-600 mt-0.5" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-gray-900 truncate">
+                              {link.title}
+                            </div>
+                            <div className="text-sm text-gray-500 truncate" title={link.url}>
+                              {link.url}
+                            </div>
+                            {link.description && (
+                              <div className="text-xs text-gray-400 mt-1">
+                                {link.description}
+                              </div>
+                            )}
+                            {link.tags && link.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {link.tags.map((tag, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={link.type === 'internal' ? 'default' : 'outline'}>
+                          {link.type === 'internal' ? 'Interno' : 'Externo'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {getResourceIcon(link.resourceType)}
+                          <span className="text-sm capitalize">{link.resourceType}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(link.status)}
+                        {link.validation?.lastChecked && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Verificado {new Date(link.validation.lastChecked).toLocaleDateString('pt-BR')}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Eye className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm font-semibold">{link.analytics?.clickCount || 0}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => window.open(link.url, '_blank')}>
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Abrir Link
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCopyLink(link.url)}>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copiar URL
+                            </DropdownMenuItem>
+                            {link.type === 'external' && (
+                              <DropdownMenuItem onClick={() => handleCheckLink(link.id)}>
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Verificar Status
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {can('links', 'edit') && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedLink(link);
+                                  setShowEditDialog(true);
+                                }}
+                              >
+                                <Edit className="w-4 h-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                            )}
+                            {can('links', 'delete') && link.type === 'external' && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedLink(link);
+                                  setShowDeleteDialog(true);
+                                }}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-            <div>
-              <Label htmlFor="link-type">Tipo de Link *</Label>
-              <Select value={newLinkType} onValueChange={(value: any) => setNewLinkType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="external">
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-4 h-4" />
-                      Externo (Público)
+      {/* Edit Dialog */}
+      {selectedLink && showEditDialog && (
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Editar Link</DialogTitle>
+              <DialogDescription>
+                Atualize as informações do link
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label>Título</Label>
+                <Input
+                  value={selectedLink.title}
+                  onChange={(e) => setSelectedLink({ ...selectedLink, title: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>URL</Label>
+                <Input
+                  value={selectedLink.url}
+                  onChange={(e) => setSelectedLink({ ...selectedLink, url: e.target.value })}
+                  disabled={selectedLink.type === 'internal'}
+                />
+              </div>
+
+              <div>
+                <Label>Descrição</Label>
+                <Textarea
+                  value={selectedLink.description || ''}
+                  onChange={(e) => setSelectedLink({ ...selectedLink, description: e.target.value })}
+                />
+              </div>
+
+              {selectedLink.type === 'external' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <Label>Verificação automática</Label>
+                    <Switch
+                      checked={selectedLink.validation?.autoCheck || false}
+                      onCheckedChange={(checked) => setSelectedLink({
+                        ...selectedLink,
+                        validation: { ...selectedLink.validation!, autoCheck: checked }
+                      })}
+                    />
+                  </div>
+
+                  {selectedLink.validation?.autoCheck && (
+                    <div>
+                      <Label>Frequência (horas)</Label>
+                      <Input
+                        type="number"
+                        value={selectedLink.validation.checkFrequency}
+                        onChange={(e) => setSelectedLink({
+                          ...selectedLink,
+                          validation: {
+                            ...selectedLink.validation!,
+                            checkFrequency: parseInt(e.target.value)
+                          }
+                        })}
+                      />
                     </div>
-                  </SelectItem>
-                  <SelectItem value="internal">
-                    <div className="flex items-center gap-2">
-                      <Lock className="w-4 h-4" />
-                      Interno (Rede Interna)
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 mt-1">
-                {newLinkType === 'external' 
-                  ? `Usará: ${settings.externalBase}` 
-                  : `Usará: ${settings.internalBase}`}
-              </p>
+                  )}
+                </>
+              )}
             </div>
 
-            <div>
-              <Label htmlFor="link-path">Caminho (Path) *</Label>
-              <Input
-                id="link-path"
-                value={newLinkPath}
-                onChange={(e) => setNewLinkPath(e.target.value)}
-                placeholder="/institucional/sobre ou /arquivos/documento.pdf"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Caminho relativo que será anexado à URL base
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="link-category">Categoria</Label>
-              <Input
-                id="link-category"
-                value={newLinkCategory}
-                onChange={(e) => setNewLinkCategory(e.target.value)}
-                placeholder="Ex: Institucional, Documentos, Sistemas"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="link-description">Descrição</Label>
-              <Input
-                id="link-description"
-                value={newLinkDescription}
-                onChange={(e) => setNewLinkDescription(e.target.value)}
-                placeholder="Descrição opcional do link"
-              />
-            </div>
-
-            {/* Preview */}
-            <div className="bg-gray-50 border rounded-lg p-4">
-              <Label className="mb-2 block">Preview da URL</Label>
-              <p className="text-sm font-mono break-all text-indigo-600">
-                {newLinkType === 'external' ? settings.externalBase : settings.internalBase}
-                {newLinkPath.startsWith('/') ? newLinkPath : `/${newLinkPath || 'seu-caminho'}`}
-              </p>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button onClick={createLink} className="flex-1">
-                <Plus className="w-4 h-4 mr-2" />
-                Criar Link
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateDialog(false);
-                  resetForm();
-                }}
-                className="flex-1"
-              >
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
                 Cancelar
               </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+              <Button onClick={handleUpdateLink}>
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O link "{selectedLink?.title}" será permanentemente excluído.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteLink} className="bg-red-600 hover:bg-red-700">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

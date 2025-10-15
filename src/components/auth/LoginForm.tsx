@@ -5,6 +5,7 @@ import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../ui/input-otp';
 import { Lock, Mail, Shield } from 'lucide-react';
+import { usePermissions } from './PermissionsContext';
 import { toast } from 'sonner@2.0.3';
 
 interface LoginFormProps {
@@ -12,6 +13,8 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onLogin }: LoginFormProps) {
+  const { setCurrentUser: setPermUser } = usePermissions();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showOTP, setShowOTP] = useState(false);
@@ -34,6 +37,14 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       password: 'editor123', 
       name: 'Editor',
       role: 'editor',
+      twoFactorEnabled: false 
+    },
+    { 
+      id: 3, 
+      email: 'viewer@portal.com', 
+      password: 'viewer123', 
+      name: 'Visualizador',
+      role: 'viewer',
       twoFactorEnabled: false 
     }
   ];
@@ -79,6 +90,15 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     const token = `token_${Date.now()}_${Math.random().toString(36)}`;
     localStorage.setItem('authToken', token);
     localStorage.setItem('currentUser', JSON.stringify(user));
+    
+    // Set permissions context
+    setPermUser({
+      id: user.id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role
+    });
+    
     toast.success(`Bem-vindo, ${user.name}!`);
     onLogin(user);
   };

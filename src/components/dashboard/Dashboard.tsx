@@ -27,13 +27,14 @@ import { SnippetManager } from '../content/SnippetManager';
 import { DashboardHome } from './DashboardHome';
 import { LinkManager } from '../links/LinkManager';
 import { TemplateManager } from '../templates/TemplateManager';
+import { SecurityMonitor } from '../security/SecurityMonitor';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'articles' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'settings';
+type View = 'home' | 'articles' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -50,6 +51,7 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
     { id: 'links', icon: LinkIcon, label: 'Links', roles: ['admin', 'editor'] },
     { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] },
     { id: 'users', icon: Users, label: 'Usuários', roles: ['admin'] },
+    { id: 'security', icon: History, label: 'Segurança', roles: ['admin'] },
     { id: 'settings', icon: Settings, label: 'Configurações', roles: ['admin'] },
   ];
 
@@ -70,11 +72,13 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
       case 'snippets':
         return <SnippetManager currentUser={currentUser} />;
       case 'links':
-        return <LinkManager />;
+        return <LinkManager currentUser={currentUser} />;
       case 'templates':
         return <TemplateManager />;
       case 'users':
         return <UserManager />;
+      case 'security':
+        return <SecurityMonitor />;
       case 'settings':
         return <SystemSettings />;
       default:

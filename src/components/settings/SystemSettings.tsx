@@ -6,7 +6,9 @@ import { Textarea } from '../ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Switch } from '../ui/switch';
-import { Save, Code, Palette, Database, FileCode } from 'lucide-react';
+import { Save, Code, Palette, Database, FileCode, Shield } from 'lucide-react';
+import { PermissionsManager } from './PermissionsManager';
+import { usePermissions, withPermission } from '../auth/PermissionsContext';
 import { toast } from 'sonner@2.0.3';
 
 interface Settings {
@@ -29,6 +31,8 @@ interface Settings {
 }
 
 export function SystemSettings() {
+  const { hasPermission } = usePermissions();
+  
   const [settings, setSettings] = useState<Settings>({
     siteName: 'Portal CMS',
     siteDescription: 'Sistema de Gerenciamento de Conteúdo',
@@ -170,6 +174,12 @@ export function SystemSettings() {
             <Palette className="w-4 h-4 mr-2" />
             Templates
           </TabsTrigger>
+          {hasPermission('settings.permissions') && (
+            <TabsTrigger value="permissions">
+              <Shield className="w-4 h-4 mr-2" />
+              Permissões
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* General Settings */}
@@ -422,6 +432,13 @@ export function SystemSettings() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* Permissions Management - Admin Only */}
+        {hasPermission('settings.permissions') && (
+          <TabsContent value="permissions">
+            <PermissionsManager />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

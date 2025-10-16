@@ -16,32 +16,42 @@ import {
   ChevronRight,
   Folder,
   File,
-  Home
+  Home,
+  MoreVertical
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { UnifiedEditor } from '../editor/UnifiedEditor';
+import { PageEditor } from './PageEditor';
 import { saveHTMLFile, deleteHTMLFile } from '../files/FileSystemHelper';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbList, BreadcrumbPage } from '../ui/breadcrumb';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { toast } from 'sonner@2.0.3';
 import { LinkManagementService } from '../../services/LinkManagementService';
 import { initializePageTemplate } from '../../utils/pageTemplates';
+import { ItemContextMenu } from '../common/ContextMenu';
+import { MoveDialog, RenameDialog, HistoryDialog, PropertiesDialog } from '../common/ItemDialogs';
+import { pageOperations } from '../common/ItemOperations';
 
 interface Page {
   id: string;
   title: string;
   slug: string;
-  components: any[];
+  content: string;
+  excerpt?: string;
+  featuredImage?: string;
   status: 'draft' | 'published' | 'scheduled';
   createdAt: string;
   updatedAt: string;
   scheduledDate?: string;
   folder?: string; // Caminho da pasta (ex: "projetos/website")
+  template?: string;
   meta?: {
     robots?: string;
     description?: string;
   };
+  name?: string; // Para compatibilidade com ItemOperations
+  path?: string; // Para compatibilidade com ItemOperations
+  type?: string; // Para compatibilidade com ItemOperations
 }
 
 interface FolderItem {
@@ -64,8 +74,28 @@ export function PageManager({ currentUser }: PageManagerProps) {
   const [currentPath, setCurrentPath] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingPage, setEditingPage] = useState<Page | null>(null);
-  const [showBuilder, setShowBuilder] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  
+  // Estados para os diálogos
+  const [moveDialog, setMoveDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
+  const [renameDialog, setRenameDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
+  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
+  const [propertiesDialog, setPropertiesDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
+  
+  // Snippets disponíveis
+  const [availableSnippets] = useState([
+    { id: '1', name: 'Botão CTA', content: '<button class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">Clique Aqui</button>' },
+    { id: '2', name: 'Card Simples', content: '<div class="bg-white p-6 rounded-lg shadow-md"><h3 class="font-semibold mb-2">Título</h3><p>Conteúdo do card</p></div>' },
+    { id: '3', name: 'Lista com Ícones', content: '<ul class="space-y-2"><li>✓ Item 1</li><li>✓ Item 2</li><li>✓ Item 3</li></ul>' }
+  ]);
+  
+  // Imagens disponíveis (exemplo)
+  const [availableImages] = useState([
+    { id: '1', name: 'Banner', url: 'https://via.placeholder.com/1200x400' },
+    { id: '2', name: 'Logo', url: 'https://via.placeholder.com/300x100' },
+    { id: '3', name: 'Thumbnail', url: 'https://via.placeholder.com/600x400' }
+  ]);
 
   useEffect(() => {
     loadPages();
@@ -173,22 +203,20 @@ export function PageManager({ currentUser }: PageManagerProps) {
   };
 
   const handleCreatePage = () => {
-    // Criar nova página com template padrão preenchido
-    const defaultTemplate = initializePageTemplate('default');
-    
     setEditingPage({
       id: '',
-      title: 'Nova Página',
+      title: '',
       slug: '',
+      content: '<h2>Bem-vindo à Nova Página</h2><p>Comece a editar o conteúdo...</p>',
+      excerpt: '',
+      featuredImage: '',
       folder: currentPath,
-      components: defaultTemplate, // Template padrão com rich text editor
+      template: 'default',
       status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    setShowBuilder(true);
-    
-    toast.success('Nova página criada com template padrão. Edite o conteúdo no painel à direita!');
+    setShowEditor(true);
   };
 
   const handleNavigate = (item: FolderItem) => {
@@ -201,7 +229,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   const handleEdit = (page: Page) => {
     setEditingPage(page);
-    setShowBuilder(true);
+    setShowEditor(true);
   };
 
   const handleSave = (page: Page) => {
@@ -225,7 +253,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
         id: newPage.id,
         title: newPage.title,
         slug: newPage.slug,
-        content: newPage.components,
+        content: newPage.content,
         folder: currentPath
       });
 
@@ -236,10 +264,10 @@ export function PageManager({ currentUser }: PageManagerProps) {
         resourceType: 'page',
         resourceId: newPage.id,
         folder: currentPath,
-        description: `Página: ${newPage.title}`,
+        description: page.excerpt || `Página: ${newPage.title}`,
         metadata: {
           status: newPage.status,
-          componentsCount: newPage.components?.length || 0
+          template: newPage.template
         }
       });
     } else {
@@ -256,7 +284,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
         id: page.id,
         title: page.title,
         slug: page.slug,
-        content: page.components,
+        content: page.content,
         folder: page.folder || ''
       });
 
@@ -270,7 +298,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
     }
     
     savePages(updatedPages);
-    setShowBuilder(false);
+    setShowEditor(false);
     setEditingPage(null);
   };
 
@@ -326,35 +354,96 @@ export function PageManager({ currentUser }: PageManagerProps) {
     return items;
   };
 
-  if (showBuilder) {
+  // Funções do menu de contexto
+  const handleContextCopy = (page: Page) => {
+    const pageItem = { ...page, name: page.title, path: page.folder, type: 'page' };
+    pageOperations.copyItem(pageItem);
+  };
+
+  const handleContextMove = (page: Page) => {
+    setMoveDialog({ open: true, item: page });
+  };
+
+  const handleContextRename = (page: Page) => {
+    setRenameDialog({ open: true, item: page });
+  };
+
+  const handleContextHistory = (page: Page) => {
+    setHistoryDialog({ open: true, item: page });
+  };
+
+  const handleContextCopyPath = (page: Page) => {
+    const pageItem = { ...page, name: page.title, path: page.folder, type: 'page' };
+    pageOperations.copyPath(pageItem);
+  };
+
+  const handleContextProperties = (page: Page) => {
+    setPropertiesDialog({ open: true, item: page });
+  };
+
+  const handleContextDelete = (page: Page) => {
+    handleDelete(page.id);
+  };
+
+  const handleMoveConfirm = (newPath: string) => {
+    if (moveDialog.item) {
+      const pageItem = { ...moveDialog.item, name: moveDialog.item.title, path: moveDialog.item.folder, type: 'page' };
+      const updated = pageOperations.moveItem(pageItem, newPath);
+      
+      const updatedPage: Page = {
+        ...moveDialog.item,
+        folder: newPath,
+        updatedAt: updated.updatedAt
+      };
+      
+      const updatedPages = pages.map(p => p.id === updatedPage.id ? updatedPage : p);
+      savePages(updatedPages);
+    }
+  };
+
+  const handleRenameConfirm = (newName: string) => {
+    if (renameDialog.item) {
+      const pageItem = { ...renameDialog.item, name: renameDialog.item.title, path: renameDialog.item.folder, type: 'page' };
+      const updated = pageOperations.renameItem(pageItem, newName);
+      
+      const updatedPage: Page = {
+        ...renameDialog.item,
+        title: newName,
+        updatedAt: updated.updatedAt
+      };
+      
+      const updatedPages = pages.map(p => p.id === updatedPage.id ? updatedPage : p);
+      savePages(updatedPages);
+    }
+  };
+
+  const handleHistoryRestore = (entry: any) => {
+    const restored = pageOperations.restoreFromHistory(entry);
+    if (restored) {
+      toast.success('Versão restaurada do histórico');
+    }
+  };
+
+  // Obter pastas disponíveis para mover
+  const getAvailablePaths = (): string[] => {
+    return folders
+      .filter(f => f.type === 'folder')
+      .map(f => f.path)
+      .filter(path => path !== moveDialog.item?.folder);
+  };
+
+  if (showEditor) {
     return (
       <div className="fixed inset-0 bg-white z-50">
-        <UnifiedEditor
-          type="page"
-          initialTitle={editingPage?.title || ''}
-          initialSlug={editingPage?.slug || ''}
-          initialComponents={editingPage?.components || []}
-          initialStatus={editingPage?.status || 'draft'}
-          initialScheduledDate={editingPage?.scheduledDate}
-          initialMeta={editingPage?.meta}
-          onSave={(data) => {
-            handleSave({
-              ...editingPage!,
-              id: editingPage?.id || '',
-              title: data.title,
-              slug: data.slug,
-              components: data.components,
-              status: data.status,
-              scheduledDate: data.scheduledDate,
-              meta: data.meta,
-              createdAt: editingPage?.createdAt || new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            });
-          }}
-          onCancel={() => {
-            setShowBuilder(false);
+        <PageEditor
+          page={editingPage}
+          onSave={handleSave}
+          onBack={() => {
+            setShowEditor(false);
             setEditingPage(null);
           }}
+          availableSnippets={availableSnippets}
+          availableImages={availableImages}
         />
       </div>
     );
@@ -474,92 +563,105 @@ export function PageManager({ currentUser }: PageManagerProps) {
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
-            <Card 
-              key={item.id} 
-              className="cursor-pointer hover:shadow-lg transition-shadow group"
-              onClick={() => handleNavigate(item)}
+            <ItemContextMenu
+              key={item.id}
+              actions={item.type === 'page' && item.page ? {
+                onCopy: () => handleContextCopy(item.page!),
+                onMove: () => handleContextMove(item.page!),
+                onRename: () => handleContextRename(item.page!),
+                onHistory: () => handleContextHistory(item.page!),
+                onCopyPath: () => handleContextCopyPath(item.page!),
+                onProperties: () => handleContextProperties(item.page!),
+                onDelete: () => handleContextDelete(item.page!)
+              } : {}}
+              disabled={item.type === 'folder'}
             >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  {item.type === 'folder' ? (
-                    <Folder className="w-12 h-12 text-blue-500" />
-                  ) : (
-                    <Layout className="w-12 h-12 text-purple-500" />
-                  )}
-                  
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm">
-                        •••
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {item.type === 'folder' ? (
-                        <>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation();
-                            handleNavigate(item);
-                          }}>
-                            <Folder className="w-4 h-4 mr-2" />
-                            Abrir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-shadow group"
+                onClick={() => handleNavigate(item)}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    {item.type === 'folder' ? (
+                      <Folder className="w-12 h-12 text-blue-500" />
+                    ) : (
+                      <Layout className="w-12 h-12 text-purple-500" />
+                    )}
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {item.type === 'folder' ? (
+                          <>
+                            <DropdownMenuItem onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteFolder(item.path);
-                            }}
-                            className="text-red-600"
-                          >
-                            <Trash className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </>
-                      ) : (
-                        <>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation();
-                            if (item.page) handleEdit(item.page);
-                          }}>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
+                              handleNavigate(item);
+                            }}>
+                              <Folder className="w-4 h-4 mr-2" />
+                              Abrir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFolder(item.path);
+                              }}
+                              className="text-red-600"
+                            >
+                              <Trash className="w-4 h-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <>
+                            <DropdownMenuItem onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(item.id);
-                            }}
-                            className="text-red-600"
-                          >
-                            <Trash className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <h3 className="font-medium text-gray-900 mb-1 truncate">
-                  {item.name}
-                </h3>
-
-                {item.type === 'page' && item.page && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant={
-                      item.page.status === 'published' ? 'default' :
-                      item.page.status === 'scheduled' ? 'secondary' : 'outline'
-                    }>
-                      {item.page.status === 'published' ? 'Publicada' :
-                       item.page.status === 'scheduled' ? 'Agendada' : 'Rascunho'}
-                    </Badge>
+                              if (item.page) handleEdit(item.page);
+                            }}>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(item.id);
+                              }}
+                              className="text-red-600"
+                            >
+                              <Trash className="w-4 h-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                )}
 
-                <p className="text-xs text-gray-500 mt-2">
-                  {new Date(item.updatedAt).toLocaleDateString('pt-BR')}
-                </p>
-              </CardContent>
-            </Card>
+                  <h3 className="font-medium text-gray-900 mb-1 truncate">
+                    {item.name}
+                  </h3>
+
+                  {item.type === 'page' && item.page && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant={
+                        item.page.status === 'published' ? 'default' :
+                        item.page.status === 'scheduled' ? 'secondary' : 'outline'
+                      }>
+                        {item.page.status === 'published' ? 'Publicada' :
+                         item.page.status === 'scheduled' ? 'Agendada' : 'Rascunho'}
+                      </Badge>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-500 mt-2">
+                    {new Date(item.updatedAt).toLocaleDateString('pt-BR')}
+                  </p>
+                </CardContent>
+              </Card>
+            </ItemContextMenu>
           ))}
 
           {filteredItems.length === 0 && (
@@ -694,6 +796,42 @@ export function PageManager({ currentUser }: PageManagerProps) {
           </div>
         </div>
       )}
+
+      {/* Diálogos */}
+      <MoveDialog
+        open={moveDialog.open}
+        onOpenChange={(open) => setMoveDialog({ open, item: null })}
+        item={moveDialog.item ? { ...moveDialog.item, name: moveDialog.item.title, path: moveDialog.item.folder, type: 'page' } : null}
+        availablePaths={getAvailablePaths()}
+        onConfirm={handleMoveConfirm}
+      />
+
+      <RenameDialog
+        open={renameDialog.open}
+        onOpenChange={(open) => setRenameDialog({ open, item: null })}
+        item={renameDialog.item ? { ...renameDialog.item, name: renameDialog.item.title, path: renameDialog.item.folder, type: 'page' } : null}
+        onConfirm={handleRenameConfirm}
+      />
+
+      <HistoryDialog
+        open={historyDialog.open}
+        onOpenChange={(open) => setHistoryDialog({ open, item: null })}
+        item={historyDialog.item ? { ...historyDialog.item, name: historyDialog.item.title, path: historyDialog.item.folder, type: 'page' } : null}
+        history={historyDialog.item ? pageOperations.getHistory(historyDialog.item.id) : []}
+        onRestore={handleHistoryRestore}
+      />
+
+      <PropertiesDialog
+        open={propertiesDialog.open}
+        onOpenChange={(open) => setPropertiesDialog({ open, item: null })}
+        item={propertiesDialog.item ? { ...propertiesDialog.item, name: propertiesDialog.item.title, path: propertiesDialog.item.folder, type: 'page' } : null}
+        additionalInfo={propertiesDialog.item ? {
+          'Slug': propertiesDialog.item.slug,
+          'Status': propertiesDialog.item.status,
+          'Template': propertiesDialog.item.template || 'default',
+          'Resumo': propertiesDialog.item.excerpt || 'Não definido'
+        } : undefined}
+      />
     </div>
   );
 }

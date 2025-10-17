@@ -15,7 +15,9 @@ import {
   Code,
   Link as LinkIcon,
   History,
-  Trash2
+  Trash2,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { PageManager } from '../pages/PageManager';
 import { FileManager } from '../files/FileManager';
@@ -30,13 +32,15 @@ import { TemplateManager } from '../templates/TemplateManager';
 import { SecurityMonitor } from '../security/SecurityMonitor';
 import { TrashViewer } from '../files/TrashViewer';
 import { EditorDemo } from '../editor/EditorDemo';
+import { CustomFieldsManager } from '../content/CustomFieldsManager';
+import { ContentSyncManager } from '../content/ContentSyncManager';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash' | 'editorDemo';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash' | 'editorDemo' | 'customFields' | 'contentSync';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -50,6 +54,8 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
     { id: 'trash', icon: Trash2, label: 'Lixeira', roles: ['admin', 'editor'] },
     { id: 'menu', icon: MenuIcon, label: 'Menu', roles: ['admin'] },
     { id: 'lists', icon: List, label: 'Listas', roles: ['admin', 'editor'] },
+    { id: 'customFields', icon: Database, label: 'Campos Personalizados', roles: ['admin', 'editor'] },
+    { id: 'contentSync', icon: RefreshCw, label: 'Sincronização', roles: ['admin', 'editor'] },
     { id: 'snippets', icon: Code, label: 'Snippets', roles: ['admin', 'editor'] },
     { id: 'links', icon: LinkIcon, label: 'Links', roles: ['admin', 'editor'] },
     { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] },
@@ -74,6 +80,10 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <MenuManager />;
       case 'lists':
         return <CustomListManager />;
+      case 'customFields':
+        return <CustomFieldsManager />;
+      case 'contentSync':
+        return <ContentSyncManager />;
       case 'snippets':
         return <SnippetManager currentUser={currentUser} />;
       case 'links':

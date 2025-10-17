@@ -24,7 +24,8 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { VisualEditor } from '../editor/VisualEditor';
+import { HierarchicalPageBuilder } from '../pages/HierarchicalPageBuilder';
+import { HierarchicalNode } from '../editor/HierarchicalRenderNode';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import { DeleteConfirmDialog } from '../common/DeleteConfirmDialog';
@@ -501,12 +502,33 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     setNewTemplateDesc('');
   };
 
-  const handleSaveTemplate = (components: any[]) => {
+  // Converter componentes antigos para formato hierárquico
+  const convertToHierarchicalNodes = (components: any[]): HierarchicalNode[] => {
+    if (!components || components.length === 0) {
+      return [];
+    }
+    
+    // Se já estão no formato hierárquico, retornar direto
+    if (components[0] && 'children' in components[0]) {
+      return components as HierarchicalNode[];
+    }
+    
+    // Converter componentes antigos para hierárquicos
+    return components.map((comp, index) => ({
+      id: `node-${Date.now()}-${index}`,
+      type: comp.type || 'container',
+      props: comp.props || {},
+      children: comp.children ? convertToHierarchicalNodes(comp.children) : undefined,
+      slots: comp.slots || undefined
+    }));
+  };
+
+  const handleSaveTemplate = (nodes: HierarchicalNode[]) => {
     if (!editingTemplate) return;
 
     const updatedTemplate = {
       ...editingTemplate,
-      components,
+      components: nodes,
       updatedAt: new Date().toISOString()
     };
 
@@ -676,12 +698,20 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
   };
 
   if (showEditor && editingTemplate) {
+    const hierarchicalNodes = convertToHierarchicalNodes(editingTemplate.components || []);
+    
     return (
-      <VisualEditor
-        initialComponents={editingTemplate.components}
-        onSave={handleSaveTemplate}
-        mode={editingTemplate.type === 'article' ? 'article' : editingTemplate.type === 'page' ? 'page' : 'template'}
-      />
+      <div className="h-screen">
+        <HierarchicalPageBuilder
+          pageId={editingTemplate.id}
+          initialContent={hierarchicalNodes}
+          onSave={(nodes) => handleSaveTemplate(nodes)}
+          onCancel={() => {
+            setShowEditor(false);
+            setEditingTemplate(null);
+          }}
+        />
+      </div>
     );
   }
 

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useDrag, useDrop } from 'react-dnd';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -417,8 +416,7 @@ export function UnifiedEditor({
         onSelectTemplate={handleTemplateSelect}
       />
 
-      <DndProvider backend={HTML5Backend}>
-        <div className="h-screen flex flex-col bg-gray-50">
+      <div className="h-screen flex flex-col bg-gray-50">
           {/* Header */}
           <div className="bg-white border-b px-6 py-4">
           <div className="flex items-center justify-between mb-4">
@@ -654,7 +652,6 @@ export function UnifiedEditor({
           </AlertDialogContent>
         </AlertDialog>
         </div>
-      </DndProvider>
     </>
   );
 }

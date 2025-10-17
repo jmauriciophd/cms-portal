@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { DndWrapper } from './components/common/DndWrapper';
 import { LoginForm } from './components/auth/LoginForm';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { PublicSite } from './components/public/PublicSite';
@@ -83,42 +84,44 @@ function AdminDashboard() {
 
 export default function App() {
   return (
-    <PermissionsProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-gray-50">
-          <Routes>
-          {/* Rota pública - Site público sem botão de login */}
-          <Route path="/" element={<PublicSite />} />
-          
-          {/* Rota de login - Acesso direto */}
-          <Route path="/login" element={<LoginPage />} />
-          
-          {/* Rota do dashboard - Protegida */}
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } 
-          />
+    <DndWrapper>
+      <PermissionsProvider>
+        <BrowserRouter>
+          <div className="min-h-screen bg-gray-50">
+            <Routes>
+            {/* Rota pública - Site público sem botão de login */}
+            <Route path="/" element={<PublicSite />} />
+            
+            {/* Rota de login - Acesso direto */}
+            <Route path="/login" element={<LoginPage />} />
+            
+            {/* Rota do dashboard - Protegida */}
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* Rota do dashboard alternativa */}
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Redireciona rotas desconhecidas para home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <Toaster />
-      </div>
-    </BrowserRouter>
-    </PermissionsProvider>
+            {/* Rota do dashboard alternativa */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Redireciona rotas desconhecidas para home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          <Toaster />
+        </div>
+      </BrowserRouter>
+      </PermissionsProvider>
+    </DndWrapper>
   );
 }

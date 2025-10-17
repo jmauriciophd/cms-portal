@@ -17,7 +17,10 @@ import {
   History,
   Trash2,
   Database,
-  RefreshCw
+  RefreshCw,
+  Tag as TagIcon,
+  Search,
+  Layers
 } from 'lucide-react';
 import { PageManager } from '../pages/PageManager';
 import { FileManager } from '../files/FileManager';
@@ -34,13 +37,16 @@ import { TrashViewer } from '../files/TrashViewer';
 import { EditorDemo } from '../editor/EditorDemo';
 import { CustomFieldsManager } from '../content/CustomFieldsManager';
 import { ContentSyncManager } from '../content/ContentSyncManager';
+import { TaxonomyManager } from '../taxonomy/TaxonomyManager';
+import { SearchSystem } from '../taxonomy/SearchSystem';
+import { HierarchicalBuilderDemo } from '../pages/HierarchicalBuilderDemo';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash' | 'editorDemo' | 'customFields' | 'contentSync';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash' | 'editorDemo' | 'customFields' | 'contentSync' | 'taxonomy' | 'search' | 'hierarchicalBuilder';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -50,9 +56,12 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
     { id: 'home', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'editor'] },
     { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
     { id: 'editorDemo', icon: FileText, label: 'Editor Inteligente', roles: ['admin', 'editor'] },
+    { id: 'hierarchicalBuilder', icon: Layers, label: 'Page Builder Hierárquico', roles: ['admin', 'editor'] },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },
     { id: 'trash', icon: Trash2, label: 'Lixeira', roles: ['admin', 'editor'] },
     { id: 'menu', icon: MenuIcon, label: 'Menu', roles: ['admin'] },
+    { id: 'search', icon: Search, label: 'Pesquisa', roles: ['admin', 'editor'] },
+    { id: 'taxonomy', icon: TagIcon, label: 'Tags e Categorias', roles: ['admin', 'editor'] },
     { id: 'lists', icon: List, label: 'Listas', roles: ['admin', 'editor'] },
     { id: 'customFields', icon: Database, label: 'Campos Personalizados', roles: ['admin', 'editor'] },
     { id: 'contentSync', icon: RefreshCw, label: 'Sincronização', roles: ['admin', 'editor'] },
@@ -78,6 +87,12 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <TrashViewer onClose={() => setCurrentView('home')} />;
       case 'menu':
         return <MenuManager />;
+      case 'search':
+        return <SearchSystem />;
+      case 'taxonomy':
+        return <TaxonomyManager currentUser={currentUser} />;
+      case 'hierarchicalBuilder':
+        return <HierarchicalBuilderDemo />;
       case 'lists':
         return <CustomListManager />;
       case 'customFields':

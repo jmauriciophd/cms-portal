@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useDrag, useDrop } from 'react-dnd';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -213,8 +212,7 @@ export function VisualEditor({ initialComponents = [], onSave, mode = 'page' }: 
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
         {/* Toolbar */}
         <div className="w-16 bg-white border-r flex flex-col items-center py-4 gap-2">
           <Button
@@ -322,7 +320,6 @@ export function VisualEditor({ initialComponents = [], onSave, mode = 'page' }: 
           </div>
         )}
       </div>
-    </DndProvider>
   );
 }
 

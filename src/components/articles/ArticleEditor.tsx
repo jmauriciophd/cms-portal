@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Card, CardContent } from '../ui/card';
-import { ArrowLeft, Save, Eye, Code } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Code, Image as ImageIcon } from 'lucide-react';
 import { Switch } from '../ui/switch';
+import { MediaLibrarySelector } from '../files/MediaLibrarySelector';
 
 interface Article {
   id?: string;
@@ -37,6 +38,8 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
     slug: ''
   });
   const [activeTab, setActiveTab] = useState('editor');
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (article) {
@@ -69,6 +72,54 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
       ...formData,
       updatedAt: new Date().toISOString()
     });
+  };
+
+  const handleMediaSelect = (file: any) => {
+    let mediaHtml = '';
+    
+    if (file.mimeType?.startsWith('image/')) {
+      mediaHtml = `<img src="${file.url}" alt="${file.name}" style="max-width: 100%; height: auto;" />`;
+    } else if (file.mimeType?.startsWith('video/')) {
+      mediaHtml = `<video controls style="max-width: 100%; height: auto;">
+  <source src="${file.url}" type="${file.mimeType}">
+  Seu navegador não suporta vídeos.
+</video>`;
+    } else if (file.mimeType?.startsWith('audio/')) {
+      mediaHtml = `<audio controls style="width: 100%;">
+  <source src="${file.url}" type="${file.mimeType}">
+  Seu navegador não suporta áudio.
+</audio>`;
+    } else {
+      mediaHtml = `<a href="${file.url}" download="${file.name}">${file.name}</a>`;
+    }
+
+    // Inserir no cursor atual ou no final
+    const textarea = contentTextareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const currentContent = formData.content;
+      
+      const newContent = 
+        currentContent.substring(0, start) + 
+        '\n' + mediaHtml + '\n' +
+        currentContent.substring(end);
+      
+      setFormData({ ...formData, content: newContent });
+      
+      // Refocar no textarea após inserção
+      setTimeout(() => {
+        textarea.focus();
+        const newPosition = start + mediaHtml.length + 2;
+        textarea.setSelectionRange(newPosition, newPosition);
+      }, 0);
+    } else {
+      // Se não conseguir acessar o textarea, adiciona no final
+      setFormData({ 
+        ...formData, 
+        content: formData.content + '\n' + mediaHtml + '\n'
+      });
+    }
   };
 
   const renderPreview = () => {
@@ -143,8 +194,20 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="content">Conteúdo</Label>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label htmlFor="content">Conteúdo</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowMediaLibrary(true)}
+                        >
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Biblioteca de Mídia
+                        </Button>
+                      </div>
                       <Textarea
+                        ref={contentTextareaRef}
                         id="content"
                         value={formData.content}
                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
@@ -153,7 +216,7 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
                         required
                       />
                       <p className="text-xs text-gray-500">
-                        Você pode usar tags HTML como &lt;h2&gt;, &lt;p&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;ul&gt;, &lt;li&gt;
+                        Você pode usar tags HTML como &lt;h2&gt;, &lt;p&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;img&gt;, &lt;video&gt;, &lt;audio&gt;
                       </p>
                     </div>
                   </TabsContent>
@@ -257,6 +320,15 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
           </div>
         </div>
       </form>
+
+      {/* Media Library Selector */}
+      <MediaLibrarySelector
+        open={showMediaLibrary}
+        onClose={() => setShowMediaLibrary(false)}
+        onSelect={handleMediaSelect}
+        allowedTypes={['image/*', 'video/*', 'audio/*']}
+        multiple={false}
+      />
     </div>
   );
 }

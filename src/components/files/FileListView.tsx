@@ -162,35 +162,35 @@ export function FileListView({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {item.type === 'folder' ? (
-                      <DropdownMenuItem onClick={() => onFolderClick(item)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onFolderClick(item); }}>
                         Abrir
                       </DropdownMenuItem>
                     ) : (
                       <>
-                        <DropdownMenuItem onClick={() => onFileClick(item)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onFileClick(item); }}>
                           {item.mimeType?.startsWith('image/') ? 'Visualizar' : 
                            item.name.endsWith('.txt') ? 'Editar' : 'Abrir'}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onContextMenu(item, 'download')}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'download'); }}>
                           Download
                         </DropdownMenuItem>
                       </>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onContextMenu(item, 'rename')}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'rename'); }}>
                       Renomear
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onContextMenu(item, 'move')}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'move'); }}>
                       Mover
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onContextMenu(item, 'copy')}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'copy'); }}>
                       Copiar
                     </DropdownMenuItem>
                     {!item.protected && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
-                          onClick={() => onContextMenu(item, 'delete')}
+                          onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'delete'); }}
                           className="text-red-600"
                         >
                           Excluir

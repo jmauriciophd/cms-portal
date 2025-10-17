@@ -14,7 +14,8 @@ import {
   List,
   Code,
   Link as LinkIcon,
-  History
+  History,
+  Trash2
 } from 'lucide-react';
 import { PageManager } from '../pages/PageManager';
 import { FileManager } from '../files/FileManager';
@@ -27,13 +28,14 @@ import { DashboardHome } from './DashboardHome';
 import { LinkManager } from '../links/LinkManager';
 import { TemplateManager } from '../templates/TemplateManager';
 import { SecurityMonitor } from '../security/SecurityMonitor';
+import { TrashViewer } from '../files/TrashViewer';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -43,6 +45,7 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
     { id: 'home', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'editor'] },
     { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },
+    { id: 'trash', icon: Trash2, label: 'Lixeira', roles: ['admin', 'editor'] },
     { id: 'menu', icon: MenuIcon, label: 'Menu', roles: ['admin'] },
     { id: 'lists', icon: List, label: 'Listas', roles: ['admin', 'editor'] },
     { id: 'snippets', icon: Code, label: 'Snippets', roles: ['admin', 'editor'] },
@@ -61,6 +64,8 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <PageManager currentUser={currentUser} />;
       case 'files':
         return <FileManager />;
+      case 'trash':
+        return <TrashViewer onClose={() => setCurrentView('home')} />;
       case 'menu':
         return <MenuManager />;
       case 'lists':

@@ -19,6 +19,7 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { toast } from 'sonner@2.0.3';
 import { Alert, AlertDescription } from '../ui/alert';
+import { TrashService } from '../../services/TrashService';
 
 interface FileData {
   id: string;
@@ -408,18 +409,26 @@ export function DeleteFileDialog({ file, allFiles, onComplete, onCancel }: FileO
   const deleteFile = () => {
     // Check if file/folder is protected
     if ((file as any).protected) {
-      toast.error(`A pasta "${file.name}" é protegida e não pode ser excluída`);
+      toast.error(`${isFolder ? 'A pasta' : 'O arquivo'} "${file.name}" é protegido e não pode ser excluído`);
       return;
     }
 
-    if (isFolder && confirmText !== 'EXCLUIR') {
-      toast.error('Digite EXCLUIR para confirmar');
+    if (isFolder && childrenCount > 0) {
+      toast.error(`A pasta contém ${childrenCount} ${childrenCount === 1 ? 'item' : 'itens'}. Esvazie a pasta antes de excluí-la.`);
       return;
     }
 
     setDeleting(true);
 
     setTimeout(() => {
+      // Mover para lixeira ao invés de deletar permanentemente
+      TrashService.moveToTrash(
+        { ...file, name: file.name },
+        isFolder ? 'folder' : 'file',
+        'current-user' // Você pode passar o usuário atual aqui
+      );
+
+      // Remover do localStorage
       let updatedFiles: FileData[];
       
       if (isFolder) {
@@ -434,66 +443,54 @@ export function DeleteFileDialog({ file, allFiles, onComplete, onCancel }: FileO
 
       localStorage.setItem('files', JSON.stringify(updatedFiles));
       
-      toast.success(`${isFolder ? 'Pasta' : 'Arquivo'} excluído com sucesso!`);
       setDeleting(false);
       onComplete();
-    }, 500);
+    }, 300);
   };
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-600">
+          <DialogTitle className="flex items-center gap-2 text-orange-600">
             <Trash2 className="w-5 h-5" />
-            Excluir {isFolder ? 'Pasta' : 'Arquivo'}
+            Mover para Lixeira
           </DialogTitle>
           <DialogDescription>
-            Esta ação não pode ser desfeita
+            O item será movido para a lixeira e poderá ser restaurado
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Aviso */}
-          <Alert className="border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800">
-              <strong>Atenção!</strong> Você está prestes a excluir:
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Mover para lixeira:</strong>
               <p className="mt-2 font-mono text-sm">{file.path}</p>
               {isFolder && childrenCount > 0 && (
-                <p className="mt-2">
-                  Esta pasta contém <strong>{childrenCount}</strong> item
-                  {childrenCount > 1 ? 's' : ''} que também serão excluídos.
+                <p className="mt-2 text-red-600">
+                  ⚠️ Atenção: Esta pasta contém <strong>{childrenCount}</strong> item
+                  {childrenCount > 1 ? 's' : ''}. Você precisa esvaziar a pasta antes de excluí-la.
+                </p>
+              )}
+              {(!isFolder || childrenCount === 0) && (
+                <p className="mt-2 text-gray-600">
+                  ✓ Você poderá restaurar este item na Lixeira
                 </p>
               )}
             </AlertDescription>
           </Alert>
 
-          {/* Confirmação para Pastas */}
-          {isFolder && (
-            <div>
-              <Label htmlFor="confirm-delete">
-                Digite <strong>EXCLUIR</strong> para confirmar:
-              </Label>
-              <Input
-                id="confirm-delete"
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                placeholder="EXCLUIR"
-                autoFocus
-              />
-            </div>
-          )}
-
           <div className="flex gap-2 pt-4">
             <Button 
               variant="destructive"
               onClick={deleteFile} 
-              disabled={deleting || (isFolder && confirmText !== 'EXCLUIR')} 
+              disabled={deleting || (isFolder && childrenCount > 0)} 
               className="flex-1"
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              {deleting ? 'Excluindo...' : 'Excluir Definitivamente'}
+              {deleting ? 'Movendo...' : 'Mover para Lixeira'}
             </Button>
             <Button variant="outline" onClick={onCancel} disabled={deleting} className="flex-1">
               Cancelar

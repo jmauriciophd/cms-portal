@@ -31,6 +31,7 @@ import { initializePageTemplate } from '../../utils/pageTemplates';
 import { ItemContextMenu } from '../common/ContextMenu';
 import { MoveDialog, RenameDialog, HistoryDialog, PropertiesDialog } from '../common/ItemDialogs';
 import { pageOperations } from '../common/ItemOperations';
+import { TrashService } from '../../services/TrashService';
 
 interface Page {
   id: string;
@@ -83,12 +84,8 @@ export function PageManager({ currentUser }: PageManagerProps) {
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
   const [propertiesDialog, setPropertiesDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
   
-  // Snippets disponíveis
-  const [availableSnippets] = useState([
-    { id: '1', name: 'Botão CTA', content: '<button class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">Clique Aqui</button>' },
-    { id: '2', name: 'Card Simples', content: '<div class="bg-white p-6 rounded-lg shadow-md"><h3 class="font-semibold mb-2">Título</h3><p>Conteúdo do card</p></div>' },
-    { id: '3', name: 'Lista com Ícones', content: '<ul class="space-y-2"><li>✓ Item 1</li><li>✓ Item 2</li><li>✓ Item 3</li></ul>' }
-  ]);
+  // Snippets disponíveis - carregados do SnippetManager
+  const [availableSnippets, setAvailableSnippets] = useState<Array<{ id: string; name: string; content: string }>>([]);
   
   // Imagens disponíveis (exemplo)
   const [availableImages] = useState([
@@ -100,7 +97,35 @@ export function PageManager({ currentUser }: PageManagerProps) {
   useEffect(() => {
     loadPages();
     loadFolders();
+    loadSnippets();
   }, []);
+
+  // Carregar snippets do SnippetManager
+  const loadSnippets = () => {
+    const stored = localStorage.getItem('snippets');
+    if (stored) {
+      try {
+        const snippets = JSON.parse(stored);
+        // Converter formato do SnippetManager para formato simples
+        const formattedSnippets = snippets.map((snippet: any) => ({
+          id: snippet.id,
+          name: snippet.name,
+          content: snippet.content
+        }));
+        setAvailableSnippets(formattedSnippets);
+      } catch (error) {
+        console.error('Erro ao carregar snippets:', error);
+        setAvailableSnippets([]);
+      }
+    } else {
+      // Se não houver snippets, usa valores padrão temporariamente
+      setAvailableSnippets([
+        { id: '1', name: 'Botão CTA', content: '<button class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">Clique Aqui</button>' },
+        { id: '2', name: 'Card Simples', content: '<div class="bg-white p-6 rounded-lg shadow-md"><h3 class="font-semibold mb-2">Título</h3><p>Conteúdo do card</p></div>' },
+        { id: '3', name: 'Lista com Ícones', content: '<ul class="space-y-2"><li>✓ Item 1</li><li>✓ Item 2</li><li>✓ Item 3</li></ul>' }
+      ]);
+    }
+  };
 
   const loadPages = () => {
     const stored = localStorage.getItem('pages');
@@ -113,11 +138,10 @@ export function PageManager({ currentUser }: PageManagerProps) {
           title: 'Página Inicial',
           slug: 'home',
           folder: '',
-          components: [
-            { id: '1', type: 'hero', content: { title: 'Bem-vindo', subtitle: 'Ao nosso portal' } },
-            { id: '2', type: 'text', content: { text: 'Conteúdo da página inicial' } }
-          ],
+          content: '<h1>Bem-vindo ao Portal</h1><p>Esta é a página inicial do seu site.</p>',
+          excerpt: 'Página inicial do portal',
           status: 'published',
+          template: 'default',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
@@ -303,19 +327,22 @@ export function PageManager({ currentUser }: PageManagerProps) {
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm('Deseja excluir esta página?')) return;
-    
     const page = pages.find(p => p.id === id);
-    if (page) {
-      const updatedPages = pages.filter(p => p.id !== id);
-      savePages(updatedPages);
-      deleteHTMLFile(page.slug, 'page');
-      
-      // Deleta links associados
-      LinkManagementService.deleteLinksForResource(id);
-      
-      toast.success('Página excluída!');
-    }
+    if (!page) return;
+
+    // Mover para lixeira ao invés de deletar permanentemente
+    TrashService.moveToTrash(
+      { ...page, name: page.title },
+      'page',
+      currentUser?.email || 'unknown'
+    );
+
+    const updatedPages = pages.filter(p => p.id !== id);
+    savePages(updatedPages);
+    deleteHTMLFile(page.slug, 'page');
+    
+    // Deleta links associados
+    LinkManagementService.deleteLinksForResource(id);
   };
 
   const handleDeleteFolder = (path: string) => {
@@ -328,11 +355,18 @@ export function PageManager({ currentUser }: PageManagerProps) {
       return;
     }
 
-    if (!confirm('Deseja excluir esta pasta?')) return;
+    const folder = folders.find(f => f.path === path);
+    if (!folder) return;
+
+    // Mover pasta para lixeira
+    TrashService.moveToTrash(
+      { ...folder, name: folder.name },
+      'folder',
+      currentUser?.email || 'unknown'
+    );
 
     const updatedFolders = folders.filter(f => f.path !== path);
     saveFolders(updatedFolders);
-    toast.success('Pasta excluída!');
   };
 
   const getBreadcrumbItems = () => {

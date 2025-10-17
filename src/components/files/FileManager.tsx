@@ -809,17 +809,17 @@ export function FileManager() {
                       {item.type === 'file' && (
                         <>
                           {item.url && (
-                            <DropdownMenuItem onClick={() => window.open(item.url, '_blank')}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(item.url, '_blank'); }}>
                               <Eye className="w-4 h-4 mr-2" />
                               Abrir em Nova Aba
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => handleDownload(item)}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(item); }}>
                             <Download className="w-4 h-4 mr-2" />
                             Download
                           </DropdownMenuItem>
                           {item.url && (
-                            <DropdownMenuItem onClick={() => handleCopyUrl(item.url!)}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyUrl(item.url!); }}>
                               <Copy className="w-4 h-4 mr-2" />
                               Copiar URL
                             </DropdownMenuItem>
@@ -827,34 +827,38 @@ export function FileManager() {
                           <DropdownMenuSeparator />
                         </>
                       )}
-                      <DropdownMenuItem onClick={() => { setOperationFile(item); setOperationType('copy'); }}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setOperationFile(item); setOperationType('copy'); }}>
                         <Copy className="w-4 h-4 mr-2" />
                         Copiar
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => { setOperationFile(item); setOperationType('move'); }}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setOperationFile(item); setOperationType('move'); }}>
                         <Move className="w-4 h-4 mr-2" />
                         Mover
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => { setOperationFile(item); setOperationType('rename'); }}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setOperationFile(item); setOperationType('rename'); }}>
                         <FileEdit className="w-4 h-4 mr-2" />
                         Renomear
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => { setOperationFile(item); setOperationType('history'); }}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setOperationFile(item); setOperationType('history'); }}>
                         <History className="w-4 h-4 mr-2" />
                         Histórico
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleCopyPath(item.path)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPath(item.path); }}>
                         <Copy className="w-4 h-4 mr-2" />
                         Copiar Caminho
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleShowProperties(item)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShowProperties(item); }}>
                         <FileText className="w-4 h-4 mr-2" />
                         Propriedades
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
-                        onClick={() => { setOperationFile(item); setOperationType('delete'); }}
+                        onClick={(e) => { 
+                          e.stopPropagation();
+                          setOperationFile(item); 
+                          setOperationType('delete'); 
+                        }}
                         className="text-red-600"
                       >
                         <Trash className="w-4 h-4 mr-2" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -22,6 +22,7 @@ import { toast } from 'sonner@2.0.3';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
+import { MediaLibrarySelector } from '../files/MediaLibrarySelector';
 
 interface Page {
   id: string;
@@ -74,6 +75,8 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
   const [showPreview, setShowPreview] = useState(false);
   const [showImageSelector, setShowImageSelector] = useState(false);
   const [showSnippetSelector, setShowSnippetSelector] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const richTextEditorRef = useRef<any>(null);
 
   useEffect(() => {
     if (page) {
@@ -97,6 +100,34 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
       title,
       slug: prev.slug || generateSlug(title)
     }));
+  };
+
+  const handleMediaSelect = (file: any) => {
+    let mediaHtml = '';
+    
+    if (file.mimeType?.startsWith('image/')) {
+      mediaHtml = `<img src="${file.url}" alt="${file.name}" style="max-width: 100%; height: auto;" />`;
+    } else if (file.mimeType?.startsWith('video/')) {
+      mediaHtml = `<video controls style="max-width: 100%; height: auto;">
+  <source src="${file.url}" type="${file.mimeType}">
+  Seu navegador não suporta vídeos.
+</video>`;
+    } else if (file.mimeType?.startsWith('audio/')) {
+      mediaHtml = `<audio controls style="width: 100%;">
+  <source src="${file.url}" type="${file.mimeType}">
+  Seu navegador não suporta áudio.
+</audio>`;
+    } else {
+      mediaHtml = `<a href="${file.url}" download="${file.name}">${file.name}</a>`;
+    }
+
+    // Inserir no editor de rich text
+    setFormData(prev => ({
+      ...prev,
+      content: prev.content + '\n' + mediaHtml + '\n'
+    }));
+
+    toast.success('Mídia inserida com sucesso!');
   };
 
   const handleSave = (status: 'draft' | 'published' | 'scheduled') => {
@@ -387,14 +418,24 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                       <Label className="text-base font-semibold">
                         Conteúdo da Página
                       </Label>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSnippetSelector(!showSnippetSelector)}
-                      >
-                        <Code className="w-4 h-4 mr-2" />
-                        Inserir Snippet
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowMediaLibrary(true)}
+                        >
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Biblioteca de Mídia
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowSnippetSelector(!showSnippetSelector)}
+                        >
+                          <Code className="w-4 h-4 mr-2" />
+                          Inserir Snippet
+                        </Button>
+                      </div>
                     </div>
 
                     {showSnippetSelector && availableSnippets.length > 0 && (
@@ -587,6 +628,15 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
           </div>
         )}
       </div>
+
+      {/* Media Library Selector */}
+      <MediaLibrarySelector
+        open={showMediaLibrary}
+        onClose={() => setShowMediaLibrary(false)}
+        onSelect={handleMediaSelect}
+        allowedTypes={['image/*', 'video/*', 'audio/*']}
+        multiple={false}
+      />
     </div>
   );
 }

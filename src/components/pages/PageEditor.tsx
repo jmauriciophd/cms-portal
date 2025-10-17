@@ -23,6 +23,7 @@ import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { MediaLibrarySelector } from '../files/MediaLibrarySelector';
+import type { Template } from '../templates/TemplateManager';
 
 interface Page {
   id: string;
@@ -37,7 +38,19 @@ interface Page {
   meta?: {
     description?: string;
     robots?: string;
+    keywords?: string;
+    // Open Graph
+    ogTitle?: string;
+    ogDescription?: string;
+    ogImage?: string;
+    ogType?: 'website' | 'article';
+    // Twitter
+    twitterCard?: 'summary' | 'summary_large_image';
+    twitterTitle?: string;
+    twitterDescription?: string;
+    twitterImage?: string;
   };
+  author?: string;
   createdAt: string;
   updatedAt: string;
   folder?: string;
@@ -64,8 +77,12 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
       template: 'default',
       meta: {
         description: '',
-        robots: 'index, follow'
+        robots: 'index, follow',
+        keywords: '',
+        ogType: 'website',
+        twitterCard: 'summary_large_image'
       },
+      author: 'Admin',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       folder: ''
@@ -76,6 +93,7 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
   const [showImageSelector, setShowImageSelector] = useState(false);
   const [showSnippetSelector, setShowSnippetSelector] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<Template[]>([]);
   const richTextEditorRef = useRef<any>(null);
 
   useEffect(() => {
@@ -83,6 +101,35 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
       setFormData(page);
     }
   }, [page]);
+
+  // Carregar templates disponíveis do localStorage
+  useEffect(() => {
+    const loadTemplates = () => {
+      const stored = localStorage.getItem('templates');
+      if (stored) {
+        try {
+          const allTemplates: Template[] = JSON.parse(stored);
+          // Filtrar apenas templates do tipo 'page'
+          const pageTemplates = allTemplates.filter(t => t.type === 'page');
+          setAvailableTemplates(pageTemplates);
+        } catch (error) {
+          console.error('Erro ao carregar templates:', error);
+        }
+      }
+    };
+
+    loadTemplates();
+
+    // Listener para atualizar quando templates mudarem
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'templates') {
+        loadTemplates();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Gerar slug automaticamente do título
   const generateSlug = (title: string) => {
@@ -368,10 +415,10 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setShowImageSelector(!showImageSelector)}
+                          onClick={() => setShowMediaLibrary(true)}
                         >
                           <ImageIcon className="w-4 h-4 mr-2" />
-                          Biblioteca de Mídia
+                          Inserir Imagem
                         </Button>
                       </div>
 
@@ -425,7 +472,7 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                           onClick={() => setShowMediaLibrary(true)}
                         >
                           <ImageIcon className="w-4 h-4 mr-2" />
-                          Biblioteca de Mídia
+                          Inserir Mídia
                         </Button>
                         <Button
                           variant="outline"
@@ -535,12 +582,19 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="default">Padrão</SelectItem>
-                            <SelectItem value="full-width">Largura Total</SelectItem>
-                            <SelectItem value="sidebar-left">Sidebar Esquerda</SelectItem>
-                            <SelectItem value="sidebar-right">Sidebar Direita</SelectItem>
+                            {availableTemplates.map((template) => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
+                      {formData.template && formData.template !== 'default' && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {availableTemplates.find(t => t.id === formData.template)?.description || 'Template selecionado'}
+                        </p>
+                      )}
                     </div>
 
                     <Separator />
@@ -559,68 +613,289 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                   </TabsContent>
 
                   <TabsContent value="seo" className="space-y-4 mt-4">
-                    {/* Meta Description */}
-                    <div>
-                      <Label htmlFor="metaDescription" className="text-xs uppercase tracking-wide text-gray-500">
-                        Meta Description
-                      </Label>
-                      <Textarea
-                        id="metaDescription"
-                        value={formData.meta?.description || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          meta: { ...prev.meta, description: e.target.value }
-                        }))}
-                        placeholder="Descrição para motores de busca"
-                        rows={3}
-                        className="mt-2 text-sm"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        {formData.meta?.description?.length || 0} / 160 caracteres
-                      </p>
-                    </div>
+                    <ScrollArea className="h-[calc(100vh-300px)]">
+                      <div className="space-y-4 pr-4">
+                        {/* Meta Description */}
+                        <div>
+                          <Label htmlFor="metaDescription" className="text-xs uppercase tracking-wide text-gray-500">
+                            Meta Description
+                          </Label>
+                          <Textarea
+                            id="metaDescription"
+                            value={formData.meta?.description || ''}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              meta: { ...prev.meta, description: e.target.value }
+                            }))}
+                            placeholder="Descrição para motores de busca"
+                            rows={3}
+                            className="mt-2 text-sm"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            {formData.meta?.description?.length || 0} / 160 caracteres (ideal: 150-160)
+                          </p>
+                        </div>
 
-                    {/* Robots */}
-                    <div>
-                      <Label className="text-xs uppercase tracking-wide text-gray-500">
-                        Meta Robots
-                      </Label>
-                      <div className="mt-2">
-                        <Select
-                          value={formData.meta?.robots || 'index, follow'}
-                          onValueChange={(value) => setFormData(prev => ({
-                            ...prev,
-                            meta: { ...prev.meta, robots: value }
-                          }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="index, follow">Index, Follow</SelectItem>
-                            <SelectItem value="noindex, follow">NoIndex, Follow</SelectItem>
-                            <SelectItem value="index, nofollow">Index, NoFollow</SelectItem>
-                            <SelectItem value="noindex, nofollow">NoIndex, NoFollow</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                        {/* Keywords */}
+                        <div>
+                          <Label htmlFor="metaKeywords" className="text-xs uppercase tracking-wide text-gray-500">
+                            Palavras-chave (Keywords)
+                          </Label>
+                          <Input
+                            id="metaKeywords"
+                            value={formData.meta?.keywords || ''}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              meta: { ...prev.meta, keywords: e.target.value }
+                            }))}
+                            placeholder="palavra1, palavra2, palavra3"
+                            className="mt-2 text-sm"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Separe por vírgulas. Ex: tecnologia, inovação, notícias
+                          </p>
+                        </div>
 
-                    {/* Preview do Resultado na Busca */}
-                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <p className="text-xs text-gray-500 mb-2">Preview no Google:</p>
-                      <div className="space-y-1">
-                        <div className="text-blue-600 text-sm hover:underline cursor-pointer">
-                          {formData.title || 'Título da Página'}
+                        {/* Robots */}
+                        <div>
+                          <Label className="text-xs uppercase tracking-wide text-gray-500">
+                            Meta Robots
+                          </Label>
+                          <div className="mt-2">
+                            <Select
+                              value={formData.meta?.robots || 'index, follow'}
+                              onValueChange={(value) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, robots: value }
+                              }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="index, follow">Index, Follow</SelectItem>
+                                <SelectItem value="noindex, follow">NoIndex, Follow</SelectItem>
+                                <SelectItem value="index, nofollow">Index, NoFollow</SelectItem>
+                                <SelectItem value="noindex, nofollow">NoIndex, NoFollow</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div className="text-xs text-green-700">
-                          {window.location.origin}/{formData.slug || 'slug'}
+
+                        <Separator />
+
+                        {/* Open Graph Section */}
+                        <div className="space-y-3">
+                          <h3 className="font-semibold text-sm text-gray-900">Open Graph (Facebook, LinkedIn)</h3>
+                          <p className="text-xs text-gray-500">
+                            Controle como sua página aparece ao ser compartilhada em redes sociais
+                          </p>
+
+                          {/* OG Title */}
+                          <div>
+                            <Label htmlFor="ogTitle" className="text-xs">
+                              OG Title
+                            </Label>
+                            <Input
+                              id="ogTitle"
+                              value={formData.meta?.ogTitle || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, ogTitle: e.target.value }
+                              }))}
+                              placeholder={formData.title || 'Deixe vazio para usar o título da página'}
+                              className="mt-1 text-sm"
+                            />
+                          </div>
+
+                          {/* OG Description */}
+                          <div>
+                            <Label htmlFor="ogDescription" className="text-xs">
+                              OG Description
+                            </Label>
+                            <Textarea
+                              id="ogDescription"
+                              value={formData.meta?.ogDescription || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, ogDescription: e.target.value }
+                              }))}
+                              placeholder={formData.meta?.description || 'Deixe vazio para usar a meta description'}
+                              rows={2}
+                              className="mt-1 text-sm"
+                            />
+                          </div>
+
+                          {/* OG Image */}
+                          <div>
+                            <Label htmlFor="ogImage" className="text-xs">
+                              OG Image URL
+                            </Label>
+                            <Input
+                              id="ogImage"
+                              value={formData.meta?.ogImage || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, ogImage: e.target.value }
+                              }))}
+                              placeholder={formData.featuredImage || 'Deixe vazio para usar a imagem destacada'}
+                              className="mt-1 text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Tamanho recomendado: 1200x630px
+                            </p>
+                          </div>
+
+                          {/* OG Type */}
+                          <div>
+                            <Label className="text-xs">
+                              OG Type
+                            </Label>
+                            <div className="mt-1">
+                              <Select
+                                value={formData.meta?.ogType || 'website'}
+                                onValueChange={(value: any) => setFormData(prev => ({
+                                  ...prev,
+                                  meta: { ...prev.meta, ogType: value }
+                                }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="website">Website</SelectItem>
+                                  <SelectItem value="article">Article</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-600">
-                          {formData.meta?.description || formData.excerpt || 'Adicione uma meta description...'}
+
+                        <Separator />
+
+                        {/* Twitter Card Section */}
+                        <div className="space-y-3">
+                          <h3 className="font-semibold text-sm text-gray-900">Twitter Card</h3>
+                          <p className="text-xs text-gray-500">
+                            Personalize a aparência no Twitter/X
+                          </p>
+
+                          {/* Twitter Card Type */}
+                          <div>
+                            <Label className="text-xs">
+                              Card Type
+                            </Label>
+                            <div className="mt-1">
+                              <Select
+                                value={formData.meta?.twitterCard || 'summary_large_image'}
+                                onValueChange={(value: any) => setFormData(prev => ({
+                                  ...prev,
+                                  meta: { ...prev.meta, twitterCard: value }
+                                }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="summary">Summary (pequeno)</SelectItem>
+                                  <SelectItem value="summary_large_image">Summary Large Image</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          {/* Twitter Title */}
+                          <div>
+                            <Label htmlFor="twitterTitle" className="text-xs">
+                              Twitter Title
+                            </Label>
+                            <Input
+                              id="twitterTitle"
+                              value={formData.meta?.twitterTitle || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, twitterTitle: e.target.value }
+                              }))}
+                              placeholder="Deixe vazio para usar OG Title / Título"
+                              className="mt-1 text-sm"
+                            />
+                          </div>
+
+                          {/* Twitter Description */}
+                          <div>
+                            <Label htmlFor="twitterDescription" className="text-xs">
+                              Twitter Description
+                            </Label>
+                            <Textarea
+                              id="twitterDescription"
+                              value={formData.meta?.twitterDescription || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, twitterDescription: e.target.value }
+                              }))}
+                              placeholder="Deixe vazio para usar OG Description"
+                              rows={2}
+                              className="mt-1 text-sm"
+                            />
+                          </div>
+
+                          {/* Twitter Image */}
+                          <div>
+                            <Label htmlFor="twitterImage" className="text-xs">
+                              Twitter Image URL
+                            </Label>
+                            <Input
+                              id="twitterImage"
+                              value={formData.meta?.twitterImage || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                meta: { ...prev.meta, twitterImage: e.target.value }
+                              }))}
+                              placeholder="Deixe vazio para usar OG Image"
+                              className="mt-1 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Preview do Resultado na Busca */}
+                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 mb-2">Preview no Google:</p>
+                          <div className="space-y-1">
+                            <div className="text-blue-600 text-sm hover:underline cursor-pointer">
+                              {formData.title || 'Título da Página'}
+                            </div>
+                            <div className="text-xs text-green-700">
+                              {window.location.origin}/{formData.slug || 'slug'}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {formData.meta?.description || formData.excerpt || 'Adicione uma meta description...'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Preview Social Media */}
+                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 mb-2">Preview Redes Sociais:</p>
+                          <div className="bg-white border border-gray-300 rounded overflow-hidden">
+                            {(formData.meta?.ogImage || formData.featuredImage) && (
+                              <div className="w-full h-32 bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                                Imagem OG: {formData.meta?.ogImage || formData.featuredImage || 'Sem imagem'}
+                              </div>
+                            )}
+                            <div className="p-2">
+                              <div className="text-xs font-semibold text-gray-900 line-clamp-1">
+                                {formData.meta?.ogTitle || formData.title || 'Título'}
+                              </div>
+                              <div className="text-xs text-gray-600 line-clamp-2 mt-1">
+                                {formData.meta?.ogDescription || formData.meta?.description || formData.excerpt || 'Descrição'}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </ScrollArea>
                   </TabsContent>
                 </Tabs>
               </div>

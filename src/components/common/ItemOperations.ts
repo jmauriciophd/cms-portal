@@ -152,22 +152,17 @@ export class ItemOperationsService {
   }
 
   // COPIAR CAMINHO
-  copyPath(item: BaseItem): void {
+  async copyPath(item: BaseItem): Promise<void> {
     const fullPath = item.path ? `${item.path}/${item.name}` : item.name;
     
-    // Copiar para clipboard
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(fullPath);
+    // Usar utilitário com fallback
+    const { copyToClipboard } = await import('../../utils/clipboard');
+    const success = await copyToClipboard(fullPath);
+    
+    if (success) {
       toast.success('Caminho copiado para a área de transferência');
     } else {
-      // Fallback para navegadores antigos
-      const textArea = document.createElement('textarea');
-      textArea.value = fullPath;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      toast.success('Caminho copiado');
+      toast.error('Erro ao copiar caminho');
     }
   }
 

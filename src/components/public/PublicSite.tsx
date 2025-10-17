@@ -16,6 +16,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
+import { SEOHead, generatePageSEO, generateArticleSEO } from '../seo/SEOHead';
 
 interface Article {
   id: string;
@@ -156,9 +157,23 @@ export function PublicSite() {
   );
 
   const renderHome = () => (
-    <div className="space-y-8">
-      {/* Hero */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl p-8 md:p-12">
+    <>
+      <SEOHead 
+        config={{
+          title: 'Portal CMS - Notícias e Conteúdo',
+          description: 'Fique por dentro das últimas novidades e atualizações do nosso portal',
+          keywords: 'notícias, portal, conteúdo, atualizações',
+          robots: 'index, follow',
+          ogType: 'website',
+          ogTitle: 'Portal CMS - Seu Portal de Notícias',
+          ogDescription: 'Fique por dentro das últimas novidades e atualizações',
+          twitterCard: 'summary_large_image',
+          schemaType: 'WebPage'
+        }}
+      />
+      <div className="space-y-8">
+        {/* Hero */}
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl p-8 md:p-12">
         <h1 className="text-3xl md:text-4xl mb-4">Portal de Notícias</h1>
         <p className="text-lg opacity-90 mb-6">
           Fique por dentro das últimas novidades e atualizações
@@ -224,20 +239,23 @@ export function PublicSite() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 
   const renderArticle = () => {
     if (!selectedArticle) return null;
 
     return (
-      <div className="max-w-4xl mx-auto">
-        <Button variant="ghost" onClick={goHome} className="mb-6">
-          <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-          Voltar
-        </Button>
+      <>
+        <SEOHead config={generateArticleSEO(selectedArticle)} />
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" onClick={goHome} className="mb-6">
+            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+            Voltar
+          </Button>
 
-        <article className="bg-white rounded-xl shadow-sm p-8">
+          <article className="bg-white rounded-xl shadow-sm p-8">
           <div className="mb-6">
             <div className="flex gap-2 mb-4 flex-wrap">
               {selectedArticle.categories?.map(cat => (
@@ -275,7 +293,8 @@ export function PublicSite() {
             <div dangerouslySetInnerHTML={{ __html: selectedArticle.content }} />
           </div>
         </article>
-      </div>
+        </div>
+      </>
     );
   };
 
@@ -283,13 +302,15 @@ export function PublicSite() {
     if (!selectedPage) return null;
 
     return (
-      <div className="max-w-4xl mx-auto">
-        <Button variant="ghost" onClick={goHome} className="mb-6">
-          <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-          Voltar
-        </Button>
+      <>
+        <SEOHead config={generatePageSEO(selectedPage)} />
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" onClick={goHome} className="mb-6">
+            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+            Voltar
+          </Button>
 
-        <article className="bg-white rounded-xl shadow-sm p-8">
+          <article className="bg-white rounded-xl shadow-sm p-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
             {selectedPage.title}
           </h1>
@@ -297,7 +318,8 @@ export function PublicSite() {
             <div dangerouslySetInnerHTML={{ __html: selectedPage.content }} />
           </div>
         </article>
-      </div>
+        </div>
+      </>
     );
   };
 

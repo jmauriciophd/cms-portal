@@ -479,9 +479,15 @@ export function SnippetManager({ currentUser }: SnippetManagerProps) {
                     variant="outline"
                     size="sm"
                     className="mt-3 w-full"
-                    onClick={() => {
-                      navigator.clipboard.writeText(previewSnippet?.content || '');
-                      toast.success('Código copiado!');
+                    onClick={async () => {
+                      const { copyToClipboard } = await import('../../utils/clipboard');
+                      const success = await copyToClipboard(previewSnippet?.content || '');
+                      
+                      if (success) {
+                        toast.success('Código copiado!');
+                      } else {
+                        toast.error('Erro ao copiar código');
+                      }
                     }}
                   >
                     <Copy className="w-4 h-4 mr-2" />

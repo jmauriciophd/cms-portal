@@ -16,11 +16,21 @@ import {
   Newspaper,
   Download,
   Upload,
-  Lock
+  Lock,
+  FolderInput,
+  Edit3,
+  History as HistoryIcon,
+  Link2,
+  MoreVertical
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { VisualEditor } from '../editor/VisualEditor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
+import { DeleteConfirmDialog } from '../common/DeleteConfirmDialog';
+import { MoveDialog, RenameDialog, HistoryDialog, PropertiesDialog } from '../common/ItemDialogs';
+import { BaseItem } from '../common/ItemOperations';
+import { TrashService } from '../../services/TrashService';
 
 export interface Template {
   id: string;
@@ -49,6 +59,13 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
   const [newTemplateDesc, setNewTemplateDesc] = useState('');
   const [selectedType, setSelectedType] = useState<Template['type']>(type || 'page');
   const [filterType, setFilterType] = useState<'all' | Template['type']>('all');
+  
+  // Estados para os diálogos
+  const [moveDialog, setMoveDialog] = useState<{ open: boolean; item: Template | null }>({ open: false, item: null });
+  const [renameDialog, setRenameDialog] = useState<{ open: boolean; item: Template | null }>({ open: false, item: null });
+  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; item: Template | null }>({ open: false, item: null });
+  const [propertiesDialog, setPropertiesDialog] = useState<{ open: boolean; item: Template | null }>({ open: false, item: null });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: Template | null }>({ open: false, item: null });
 
   useEffect(() => {
     loadTemplates();
@@ -522,12 +539,22 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     toast.success('Template duplicado!');
   };
 
-  const handleDeleteTemplate = (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este template?')) return;
+  const handleDeleteTemplate = (template: Template) => {
+    setDeleteDialog({ open: true, item: template });
+  };
 
-    const updatedTemplates = templates.filter(t => t.id !== id);
+  const handleDeleteConfirm = () => {
+    if (!deleteDialog.item) return;
+
+    // Mover para lixeira
+    TrashService.moveToTrash(
+      { ...deleteDialog.item, name: deleteDialog.item.name },
+      'template',
+      'current-user'
+    );
+
+    const updatedTemplates = templates.filter(t => t.id !== deleteDialog.item!.id);
     saveTemplates(updatedTemplates);
-    toast.success('Template excluído!');
   };
 
   const handleExportTemplate = (template: Template) => {
@@ -562,6 +589,67 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     };
     reader.readAsText(file);
     event.target.value = '';
+  };
+
+  // Funções do menu de contexto
+  const handleContextCopy = (template: Template) => {
+    handleDuplicateTemplate(template);
+  };
+
+  const handleContextMove = (template: Template) => {
+    setMoveDialog({ open: true, item: template });
+  };
+
+  const handleContextRename = (template: Template) => {
+    setRenameDialog({ open: true, item: template });
+  };
+
+  const handleContextHistory = (template: Template) => {
+    setHistoryDialog({ open: true, item: template });
+  };
+
+  const handleContextCopyPath = async (template: Template) => {
+    const path = `/templates/${template.id}`;
+    const { copyToClipboard } = await import('../../utils/clipboard');
+    const success = await copyToClipboard(path);
+    
+    if (success) {
+      toast.success('Caminho copiado!');
+    } else {
+      toast.error('Erro ao copiar caminho');
+    }
+  };
+
+  const handleContextProperties = (template: Template) => {
+    setPropertiesDialog({ open: true, item: template });
+  };
+
+  const handleContextDelete = (template: Template) => {
+    handleDeleteTemplate(template);
+  };
+
+  const handleMoveConfirm = (newPath: string) => {
+    if (moveDialog.item) {
+      // Simular movimentação (já que templates não têm pastas ainda)
+      toast.success(`Template "${moveDialog.item.name}" movido!`);
+    }
+  };
+
+  const handleRenameConfirm = (newName: string) => {
+    if (renameDialog.item) {
+      const updatedTemplate: Template = {
+        ...renameDialog.item,
+        name: newName,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const updatedTemplates = templates.map(t => t.id === updatedTemplate.id ? updatedTemplate : t);
+      saveTemplates(updatedTemplates);
+    }
+  };
+
+  const handleHistoryRestore = (entry: any) => {
+    toast.success('Versão restaurada do histórico');
   };
 
   const filteredTemplates = templates.filter(t => {

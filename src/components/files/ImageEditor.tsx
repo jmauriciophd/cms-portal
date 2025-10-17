@@ -4,28 +4,44 @@ import { Label } from '../ui/label';
 import { Slider } from '../ui/slider';
 import { 
   RotateCw, 
+  RotateCcw,
+  FlipHorizontal,
+  FlipVertical,
   ZoomIn, 
   ZoomOut, 
   Crop,
   Save,
   X,
   Undo,
-  Image as ImageIcon,
+  Redo,
+  Download,
   Scissors,
   Contrast,
-  Sparkles
+  Sparkles,
+  Maximize2,
+  Info
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Card, CardContent } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner@2.0.3';
+import { AuditService } from '../../services/AuditService';
+import { SecurityService } from '../../services/SecurityService';
 
 interface ImageEditorProps {
   imageUrl: string;
   imageName: string;
   onSave: (editedImageUrl: string, editedImageName: string) => void;
   onClose: () => void;
+}
+
+interface ImageState {
+  dataUrl: string;
+  width: number;
+  height: number;
 }
 
 export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEditorProps) {
@@ -35,13 +51,26 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
+  // Image info
+  const [originalSize, setOriginalSize] = useState({ width: 0, height: 0, bytes: 0 });
+  const [currentSize, setCurrentSize] = useState({ width: 0, height: 0, bytes: 0 });
+  
   // Edit states
   const [rotation, setRotation] = useState(0);
+  const [flipHorizontal, setFlipHorizontal] = useState(false);
+  const [flipVertical, setFlipVertical] = useState(false);
   const [scale, setScale] = useState(100);
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [saturation, setSaturation] = useState(100);
-  const [filter, setFilter] = useState<'none' | 'grayscale' | 'sepia' | 'invert' | 'blur' | 'vintage'>('none');
+  const [hue, setHue] = useState(0);
+  const [blur, setBlur] = useState(0);
+  const [filter, setFilter] = useState<'none' | 'grayscale' | 'sepia' | 'invert' | 'vintage' | 'warm' | 'cool'>('none');
+  
+  // Resize states
+  const [newWidth, setNewWidth] = useState<number>(0);
+  const [newHeight, setNewHeight] = useState<number>(0);
+  const [maintainAspectRatio, setMaintainAspectRatio] = useState(true);
   
   // Crop states
   const [isCropping, setIsCropping] = useState(false);
@@ -49,9 +78,15 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
   const [cropEnd, setCropEnd] = useState({ x: 0, y: 0 });
   const [cropRect, setCropRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   
-  // History for undo
-  const [history, setHistory] = useState<string[]>([]);
+  // History for undo/redo
+  const [history, setHistory] = useState<ImageState[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   
+  // Save dialog
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'png' | 'jpg' | 'webp'>('png');
+  const [quality, setQuality] = useState(95);
+
   useEffect(() => {
     loadImage();
   }, [imageUrl]);
@@ -59,8 +94,9 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
   useEffect(() => {
     if (image) {
       renderImage();
+      updateCurrentSize();
     }
-  }, [image, rotation, scale, brightness, contrast, saturation, filter]);
+  }, [image, rotation, flipHorizontal, flipVertical, scale, brightness, contrast, saturation, hue, blur, filter, newWidth, newHeight]);
 
   const loadImage = () => {
     setLoading(true);
@@ -68,9 +104,25 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       setImage(img);
+      setOriginalSize({ 
+        width: img.width, 
+        height: img.height,
+        bytes: estimateImageSize(img.width, img.height)
+      });
+      setNewWidth(img.width);
+      setNewHeight(img.height);
       setLoading(false);
+      
       // Save initial state to history
-      saveToHistory(imageUrl);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL('image/png');
+        addToHistory({ dataUrl, width: img.width, height: img.height });
+      }
     };
     img.onerror = () => {
       setLoading(false);
@@ -79,8 +131,39 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     img.src = imageUrl;
   };
 
-  const saveToHistory = (dataUrl: string) => {
-    setHistory(prev => [...prev.slice(-9), dataUrl]); // Keep last 10 states
+  const estimateImageSize = (width: number, height: number, format: string = 'png'): number => {
+    // Estimativa aproximada do tamanho em bytes
+    const pixelCount = width * height;
+    const bytesPerPixel = format === 'jpg' ? 0.5 : format === 'webp' ? 0.3 : 4;
+    return Math.round(pixelCount * bytesPerPixel);
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  };
+
+  const addToHistory = (state: ImageState) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(state);
+    // Limitar histórico a 20 estados
+    if (newHistory.length > 20) {
+      newHistory.shift();
+    }
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const updateCurrentSize = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    setCurrentSize({
+      width: canvas.width,
+      height: canvas.height,
+      bytes: estimateImageSize(canvas.width, canvas.height, exportFormat)
+    });
   };
 
   const renderImage = () => {
@@ -92,15 +175,19 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     const previewCtx = previewCanvas.getContext('2d');
     if (!ctx || !previewCtx) return;
 
+    // Calculate dimensions based on resize settings
+    const targetWidth = newWidth || image.width;
+    const targetHeight = newHeight || image.height;
+
     // Set canvas size
-    canvas.width = image.width;
-    canvas.height = image.height;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     
     // Set preview canvas size (scaled down)
     const maxPreviewSize = 800;
-    const scaleFactor = Math.min(maxPreviewSize / image.width, maxPreviewSize / image.height, 1);
-    previewCanvas.width = image.width * scaleFactor;
-    previewCanvas.height = image.height * scaleFactor;
+    const scaleFactor = Math.min(maxPreviewSize / targetWidth, maxPreviewSize / targetHeight, 1);
+    previewCanvas.width = targetWidth * scaleFactor;
+    previewCanvas.height = targetHeight * scaleFactor;
 
     // Clear canvases
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -113,16 +200,24 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
       
       context.save();
       
-      // Center and rotate
+      // Center and apply transformations
       context.translate(currentCanvas.width / 2, currentCanvas.height / 2);
+      
+      // Rotation
       context.rotate((rotation * Math.PI) / 180);
-      context.scale(scale / 100, scale / 100);
+      
+      // Flip
+      const flipX = flipHorizontal ? -1 : 1;
+      const flipY = flipVertical ? -1 : 1;
+      context.scale(flipX * (scale / 100), flipY * (scale / 100));
       
       // Apply filters
       let filterStr = '';
       if (brightness !== 100) filterStr += `brightness(${brightness}%) `;
       if (contrast !== 100) filterStr += `contrast(${contrast}%) `;
       if (saturation !== 100) filterStr += `saturate(${saturation}%) `;
+      if (hue !== 0) filterStr += `hue-rotate(${hue}deg) `;
+      if (blur > 0) filterStr += `blur(${blur}px) `;
       
       switch (filter) {
         case 'grayscale':
@@ -134,19 +229,22 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
         case 'invert':
           filterStr += 'invert(100%)';
           break;
-        case 'blur':
-          filterStr += 'blur(2px)';
-          break;
         case 'vintage':
           filterStr += 'sepia(50%) contrast(120%) brightness(90%)';
+          break;
+        case 'warm':
+          filterStr += 'sepia(20%) saturate(130%) hue-rotate(-10deg)';
+          break;
+        case 'cool':
+          filterStr += 'saturate(110%) hue-rotate(10deg) brightness(105%)';
           break;
       }
       
       context.filter = filterStr;
       
       // Draw image
-      const width = image.width * currentScale;
-      const height = image.height * currentScale;
+      const width = targetWidth * currentScale;
+      const height = targetHeight * currentScale;
       context.drawImage(image, -width / 2, -height / 2, width, height);
       
       context.restore();
@@ -164,11 +262,26 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
         cropRect.height * scaleFactor
       );
       previewCtx.setLineDash([]);
+      
+      // Add semi-transparent overlay outside crop area
+      previewCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      previewCtx.fillRect(0, 0, previewCanvas.width, cropRect.y * scaleFactor);
+      previewCtx.fillRect(0, cropRect.y * scaleFactor, cropRect.x * scaleFactor, cropRect.height * scaleFactor);
+      previewCtx.fillRect((cropRect.x + cropRect.width) * scaleFactor, cropRect.y * scaleFactor, previewCanvas.width, cropRect.height * scaleFactor);
+      previewCtx.fillRect(0, (cropRect.y + cropRect.height) * scaleFactor, previewCanvas.width, previewCanvas.height);
     }
   };
 
-  const handleRotate = () => {
-    setRotation((prev) => (prev + 90) % 360);
+  const handleRotate = (degrees: number) => {
+    setRotation((prev) => (prev + degrees) % 360);
+  };
+
+  const handleFlipHorizontal = () => {
+    setFlipHorizontal(!flipHorizontal);
+  };
+
+  const handleFlipVertical = () => {
+    setFlipVertical(!flipVertical);
   };
 
   const handleZoomIn = () => {
@@ -179,24 +292,69 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     setScale((prev) => Math.max(prev - 10, 10));
   };
 
+  const handleWidthChange = (value: number) => {
+    setNewWidth(value);
+    if (maintainAspectRatio && image) {
+      const aspectRatio = image.width / image.height;
+      setNewHeight(Math.round(value / aspectRatio));
+    }
+  };
+
+  const handleHeightChange = (value: number) => {
+    setNewHeight(value);
+    if (maintainAspectRatio && image) {
+      const aspectRatio = image.width / image.height;
+      setNewWidth(Math.round(value * aspectRatio));
+    }
+  };
+
   const handleReset = () => {
     setRotation(0);
+    setFlipHorizontal(false);
+    setFlipVertical(false);
     setScale(100);
     setBrightness(100);
     setContrast(100);
     setSaturation(100);
+    setHue(0);
+    setBlur(0);
     setFilter('none');
     setCropRect(null);
+    if (image) {
+      setNewWidth(image.width);
+      setNewHeight(image.height);
+    }
     toast.success('Edições resetadas');
   };
 
   const handleUndo = () => {
-    if (history.length > 1) {
-      const previousState = history[history.length - 2];
-      setHistory(prev => prev.slice(0, -1));
-      loadImage();
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      const state = history[newIndex];
+      restoreFromState(state);
+      setHistoryIndex(newIndex);
       toast.success('Ação desfeita');
     }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      const state = history[newIndex];
+      restoreFromState(state);
+      setHistoryIndex(newIndex);
+      toast.success('Ação refeita');
+    }
+  };
+
+  const restoreFromState = (state: ImageState) => {
+    const img = new Image();
+    img.onload = () => {
+      setImage(img);
+      setNewWidth(state.width);
+      setNewHeight(state.height);
+    };
+    img.src = state.dataUrl;
   };
 
   const startCrop = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -216,7 +374,7 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     if (!isCropping || cropStart.x === 0) return;
     
     const canvas = previewCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !image) return;
     
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -231,7 +389,7 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     const cropHeight = Math.abs(y - cropStart.y);
     
     // Scale to original image size
-    const scaleFactor = image ? (canvas.width / image.width) : 1;
+    const scaleFactor = canvas.width / (newWidth || image.width);
     setCropRect({
       x: cropX / scaleFactor,
       y: cropY / scaleFactor,
@@ -261,8 +419,8 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
 
     // Create a new canvas with cropped dimensions
     const croppedCanvas = document.createElement('canvas');
-    croppedCanvas.width = cropRect.width;
-    croppedCanvas.height = cropRect.height;
+    croppedCanvas.width = Math.round(cropRect.width);
+    croppedCanvas.height = Math.round(cropRect.height);
     const croppedCtx = croppedCanvas.getContext('2d');
     
     if (!croppedCtx) return;
@@ -270,28 +428,39 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
     // Draw cropped portion
     croppedCtx.drawImage(
       canvas,
-      cropRect.x,
-      cropRect.y,
-      cropRect.width,
-      cropRect.height,
+      Math.round(cropRect.x),
+      Math.round(cropRect.y),
+      Math.round(cropRect.width),
+      Math.round(cropRect.height),
       0,
       0,
-      cropRect.width,
-      cropRect.height
+      Math.round(cropRect.width),
+      Math.round(cropRect.height)
     );
 
     // Update image
     const img = new Image();
     img.onload = () => {
       setImage(img);
+      setNewWidth(croppedCanvas.width);
+      setNewHeight(croppedCanvas.height);
       setCropRect(null);
       setIsCropping(false);
+      
+      // Add to history
+      const dataUrl = croppedCanvas.toDataURL('image/png');
+      addToHistory({ dataUrl, width: croppedCanvas.width, height: croppedCanvas.height });
+      
       toast.success('Imagem cortada com sucesso!');
     };
     img.src = croppedCanvas.toDataURL('image/png');
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
+    setShowSaveDialog(true);
+  };
+
+  const handleSaveConfirm = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -301,49 +470,90 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
       // Simulate processing time
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const editedImageUrl = canvas.toDataURL('image/png', 0.95);
-      const editedName = imageName.replace(/\.[^/.]+$/, '') + '-edited.png';
+      // Determine MIME type and quality
+      let mimeType = 'image/png';
+      let qualityValue = 1;
+      
+      if (exportFormat === 'jpg') {
+        mimeType = 'image/jpeg';
+        qualityValue = quality / 100;
+      } else if (exportFormat === 'webp') {
+        mimeType = 'image/webp';
+        qualityValue = quality / 100;
+      }
+      
+      const editedImageUrl = canvas.toDataURL(mimeType, qualityValue);
+      const extension = exportFormat === 'jpg' ? 'jpg' : exportFormat;
+      const baseName = imageName.replace(/\.[^/.]+$/, '');
+      const editedName = `${baseName}-editado.${extension}`;
+      
+      // Audit log
+      const user = SecurityService.getCurrentUser();
+      AuditService.log({
+        action: 'image_edited',
+        userId: user?.id || 'system',
+        details: {
+          originalName: imageName,
+          editedName,
+          format: exportFormat,
+          originalSize: originalSize,
+          newSize: currentSize
+        },
+        severity: 'info'
+      });
       
       onSave(editedImageUrl, editedName);
       toast.success('Imagem salva com sucesso!');
+      setShowSaveDialog(false);
+      
+      // Close editor after short delay
+      setTimeout(() => {
+        onClose();
+      }, 500);
     } catch (error) {
       toast.error('Erro ao salvar imagem');
+      console.error('Erro ao salvar:', error);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[90vh]">
+    <div className="flex flex-col h-full max-h-[98vh]">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between p-4 border-b bg-white">
         <div>
-          <h2 className="text-lg font-semibold">Editor de Imagem</h2>
+          <h2 className="text-lg">Editor de Imagem</h2>
           <p className="text-sm text-gray-500">{imageName}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleUndo} disabled={history.length <= 1}>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleUndo} 
+            disabled={historyIndex <= 0}
+          >
             <Undo className="w-4 h-4 mr-2" />
             Desfazer
           </Button>
-          <Button variant="outline" onClick={handleReset}>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleRedo} 
+            disabled={historyIndex >= history.length - 1}
+          >
+            <Redo className="w-4 h-4 mr-2" />
+            Refazer
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleReset}>
             <X className="w-4 h-4 mr-2" />
             Resetar
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Salvar Edição
-              </>
-            )}
+          <Button size="sm" onClick={handleSaveClick} disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            Salvar
           </Button>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -352,35 +562,53 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Preview Area */}
-        <div className="flex-1 bg-gray-100 flex items-center justify-center p-4 overflow-auto">
+        <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center p-4 overflow-auto">
           {loading ? (
             <div className="text-center">
               <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <p className="text-gray-600">Carregando imagem...</p>
             </div>
           ) : (
-            <div className="relative">
-              <canvas
-                ref={previewCanvasRef}
-                className={`max-w-full max-h-[70vh] shadow-lg ${isCropping ? 'cursor-crosshair' : ''}`}
-                onMouseDown={startCrop}
-                onMouseMove={updateCrop}
-                onMouseUp={endCrop}
-              />
-              {isCropping && (
-                <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-3 py-2 rounded-lg text-sm">
-                  <Scissors className="w-4 h-4 inline mr-2" />
-                  Arraste para selecionar a área de corte
-                </div>
-              )}
-            </div>
+            <>
+              <div className="relative mb-4">
+                <canvas
+                  ref={previewCanvasRef}
+                  className={`max-w-full max-h-[85vh] shadow-2xl rounded-lg ${isCropping ? 'cursor-crosshair' : ''}`}
+                  onMouseDown={startCrop}
+                  onMouseMove={updateCrop}
+                  onMouseUp={endCrop}
+                  style={{
+                    background: 'repeating-conic-gradient(#e5e7eb 0% 25%, #f3f4f6 0% 50%) 50% / 20px 20px'
+                  }}
+                />
+                {isCropping && (
+                  <div className="absolute top-4 left-4 bg-black bg-opacity-75 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+                    <Scissors className="w-4 h-4" />
+                    Arraste para selecionar a área de corte
+                  </div>
+                )}
+              </div>
+              
+              {/* Image Info */}
+              <Card className="w-full max-w-md">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Info className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-600">Dimensões:</span>
+                    </div>
+                    <span className="font-mono">{currentSize.width} × {currentSize.height} px</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
 
         {/* Controls Panel */}
-        <div className="w-80 border-l overflow-y-auto">
+        <div className="w-80 border-l overflow-y-auto bg-white">
           <Tabs defaultValue="adjust" className="h-full">
-            <TabsList className="w-full grid grid-cols-3">
+            <TabsList className="w-full grid grid-cols-4 rounded-none border-b">
               <TabsTrigger value="adjust" className="text-xs">
                 <Contrast className="w-4 h-4 mr-1" />
                 Ajustar
@@ -392,6 +620,10 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
               <TabsTrigger value="transform" className="text-xs">
                 <RotateCw className="w-4 h-4 mr-1" />
                 Transformar
+              </TabsTrigger>
+              <TabsTrigger value="resize" className="text-xs">
+                <Maximize2 className="w-4 h-4 mr-1" />
+                Redimensionar
               </TabsTrigger>
             </TabsList>
 
@@ -437,97 +669,102 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
                   step={1}
                 />
               </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Matiz</Label>
+                  <Badge variant="secondary">{hue}°</Badge>
+                </div>
+                <Slider
+                  value={[hue]}
+                  onValueChange={([value]) => setHue(value)}
+                  min={0}
+                  max={360}
+                  step={1}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Desfoque</Label>
+                  <Badge variant="secondary">{blur}px</Badge>
+                </div>
+                <Slider
+                  value={[blur]}
+                  onValueChange={([value]) => setBlur(value)}
+                  min={0}
+                  max={10}
+                  step={0.5}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="filters" className="p-4 space-y-3">
               <p className="text-sm text-gray-600 mb-4">Selecione um filtro para aplicar</p>
               
-              <Card 
-                className={`cursor-pointer transition-all ${filter === 'none' ? 'ring-2 ring-indigo-600' : ''}`}
-                onClick={() => setFilter('none')}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-gray-200 to-gray-400 rounded" />
-                    <div>
-                      <p className="font-medium">Original</p>
-                      <p className="text-xs text-gray-500">Sem filtro</p>
+              {[
+                { id: 'none', name: 'Original', desc: 'Sem filtro', gradient: 'from-gray-200 to-gray-400' },
+                { id: 'grayscale', name: 'Preto e Branco', desc: 'Tons de cinza', gradient: 'from-gray-400 to-gray-600' },
+                { id: 'sepia', name: 'Sépia', desc: 'Tom envelhecido', gradient: 'from-amber-200 to-amber-600' },
+                { id: 'vintage', name: 'Vintage', desc: 'Estilo retrô', gradient: 'from-orange-200 to-red-400' },
+                { id: 'warm', name: 'Quente', desc: 'Tons quentes', gradient: 'from-yellow-300 to-orange-500' },
+                { id: 'cool', name: 'Frio', desc: 'Tons frios', gradient: 'from-blue-300 to-cyan-500' },
+                { id: 'invert', name: 'Inverter', desc: 'Cores invertidas', gradient: 'from-blue-600 to-purple-600' }
+              ].map((f) => (
+                <Card 
+                  key={f.id}
+                  className={`cursor-pointer transition-all hover:shadow-md ${filter === f.id ? 'ring-2 ring-indigo-600' : ''}`}
+                  onClick={() => setFilter(f.id as any)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 bg-gradient-to-br ${f.gradient} rounded ${f.id === 'grayscale' ? 'grayscale' : ''}`} />
+                      <div>
+                        <p className="font-medium">{f.name}</p>
+                        <p className="text-xs text-gray-500">{f.desc}</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className={`cursor-pointer transition-all ${filter === 'grayscale' ? 'ring-2 ring-indigo-600' : ''}`}
-                onClick={() => setFilter('grayscale')}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-gray-400 to-gray-600 rounded grayscale" />
-                    <div>
-                      <p className="font-medium">Preto e Branco</p>
-                      <p className="text-xs text-gray-500">Tons de cinza</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className={`cursor-pointer transition-all ${filter === 'sepia' ? 'ring-2 ring-indigo-600' : ''}`}
-                onClick={() => setFilter('sepia')}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-amber-200 to-amber-600 rounded sepia" />
-                    <div>
-                      <p className="font-medium">Sépia</p>
-                      <p className="text-xs text-gray-500">Tom envelhecido</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className={`cursor-pointer transition-all ${filter === 'vintage' ? 'ring-2 ring-indigo-600' : ''}`}
-                onClick={() => setFilter('vintage')}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-200 to-red-400 rounded" />
-                    <div>
-                      <p className="font-medium">Vintage</p>
-                      <p className="text-xs text-gray-500">Estilo retrô</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className={`cursor-pointer transition-all ${filter === 'invert' ? 'ring-2 ring-indigo-600' : ''}`}
-                onClick={() => setFilter('invert')}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded" />
-                    <div>
-                      <p className="font-medium">Inverter</p>
-                      <p className="text-xs text-gray-500">Cores invertidas</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              ))}
             </TabsContent>
 
             <TabsContent value="transform" className="p-4 space-y-4">
               <div>
                 <Label className="mb-3 block">Rotação</Label>
-                <div className="flex gap-2">
-                  <Button onClick={handleRotate} className="flex-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => handleRotate(90)} variant="outline" size="sm">
                     <RotateCw className="w-4 h-4 mr-2" />
-                    Girar 90°
+                    90° →
+                  </Button>
+                  <Button onClick={() => handleRotate(-90)} variant="outline" size="sm">
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    ← 90°
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">Rotação atual: {rotation}°</p>
+              </div>
+
+              <div>
+                <Label className="mb-3 block">Espelhar</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={handleFlipHorizontal} 
+                    variant={flipHorizontal ? 'default' : 'outline'} 
+                    size="sm"
+                  >
+                    <FlipHorizontal className="w-4 h-4 mr-2" />
+                    Horizontal
+                  </Button>
+                  <Button 
+                    onClick={handleFlipVertical} 
+                    variant={flipVertical ? 'default' : 'outline'} 
+                    size="sm"
+                  >
+                    <FlipVertical className="w-4 h-4 mr-2" />
+                    Vertical
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -558,21 +795,71 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
                   onClick={() => setIsCropping(!isCropping)} 
                   variant={isCropping ? 'default' : 'outline'}
                   className="w-full"
+                  size="sm"
                 >
                   <Crop className="w-4 h-4 mr-2" />
                   {isCropping ? 'Modo de Corte Ativo' : 'Ativar Modo de Corte'}
                 </Button>
                 {isCropping && (
                   <p className="text-xs text-gray-500 mt-2">
-                    Clique e arraste na imagem para selecionar a área de corte
+                    Clique e arraste na imagem para selecionar a área
                   </p>
                 )}
                 {cropRect && (
                   <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
                     <p>Área selecionada:</p>
-                    <p>{Math.round(cropRect.width)} × {Math.round(cropRect.height)} px</p>
+                    <p className="font-mono">{Math.round(cropRect.width)} × {Math.round(cropRect.height)} px</p>
                   </div>
                 )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="resize" className="p-4 space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <Label className="mb-2 block">Largura (px)</Label>
+                  <input
+                    type="number"
+                    value={newWidth}
+                    onChange={(e) => handleWidthChange(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border rounded-md"
+                    min="1"
+                  />
+                </div>
+
+                <div>
+                  <Label className="mb-2 block">Altura (px)</Label>
+                  <input
+                    type="number"
+                    value={newHeight}
+                    onChange={(e) => handleHeightChange(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border rounded-md"
+                    min="1"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="aspect-ratio"
+                    checked={maintainAspectRatio}
+                    onChange={(e) => setMaintainAspectRatio(e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="aspect-ratio" className="cursor-pointer">
+                    Manter proporção
+                  </Label>
+                </div>
+
+                <div className="p-3 bg-blue-50 rounded-lg text-sm">
+                  <p className="text-gray-700 mb-1">Tamanho original:</p>
+                  <p className="font-mono text-indigo-700">
+                    {originalSize.width} × {originalSize.height} px
+                  </p>
+                  <p className="text-gray-500 text-xs mt-1">
+                    {formatFileSize(originalSize.bytes)}
+                  </p>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -582,14 +869,105 @@ export function ImageEditor({ imageUrl, imageName, onSave, onClose }: ImageEdito
       {/* Hidden canvas for full-size rendering */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Progress indicator when saving */}
+      {/* Save Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Salvar Imagem Editada</DialogTitle>
+            <DialogDescription>
+              Escolha o formato e qualidade para exportação
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="mb-2 block">Formato de Exportação</Label>
+              <Select value={exportFormat} onValueChange={(value: any) => setExportFormat(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="png">PNG (melhor qualidade)</SelectItem>
+                  <SelectItem value="jpg">JPG (menor tamanho)</SelectItem>
+                  <SelectItem value="webp">WebP (moderna)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(exportFormat === 'jpg' || exportFormat === 'webp') && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Qualidade</Label>
+                  <Badge variant="secondary">{quality}%</Badge>
+                </div>
+                <Slider
+                  value={[quality]}
+                  onValueChange={([value]) => setQuality(value)}
+                  min={1}
+                  max={100}
+                  step={1}
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Original</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  <p className="text-xs text-gray-600">Dimensões:</p>
+                  <p className="font-mono text-sm">{originalSize.width} × {originalSize.height}</p>
+                  <p className="text-xs text-gray-600 mt-2">Tamanho:</p>
+                  <p className="font-mono text-sm">{formatFileSize(originalSize.bytes)}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Editada</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  <p className="text-xs text-gray-600">Dimensões:</p>
+                  <p className="font-mono text-sm">{currentSize.width} × {currentSize.height}</p>
+                  <p className="text-xs text-gray-600 mt-2">Tamanho estimado:</p>
+                  <p className="font-mono text-sm">{formatFileSize(estimateImageSize(currentSize.width, currentSize.height, exportFormat))}</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveConfirm} disabled={saving}>
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Salvar Cópia
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Progress overlay when saving */}
       {saving && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <Card className="w-80">
             <CardContent className="p-6">
               <p className="text-center mb-4">Salvando imagem editada...</p>
               <Progress value={66} className="mb-2" />
-              <p className="text-xs text-center text-gray-500">Aplicando edições e otimizando</p>
+              <p className="text-xs text-center text-gray-500">
+                Aplicando edições e otimizando ({exportFormat.toUpperCase()})
+              </p>
             </CardContent>
           </Card>
         </div>

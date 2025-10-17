@@ -6,8 +6,9 @@ import { Textarea } from '../ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Switch } from '../ui/switch';
-import { Save, Code, Palette, Database, FileCode, Shield } from 'lucide-react';
+import { Save, Code, Palette, Database, FileCode, Shield, Sparkles } from 'lucide-react';
 import { PermissionsManager } from './PermissionsManager';
+import { AIProviderConfig } from '../ai/AIProviderConfig';
 import { usePermissions, withPermission } from '../auth/PermissionsContext';
 import { toast } from 'sonner@2.0.3';
 
@@ -173,6 +174,10 @@ export function SystemSettings() {
           <TabsTrigger value="templates">
             <Palette className="w-4 h-4 mr-2" />
             Templates
+          </TabsTrigger>
+          <TabsTrigger value="ai">
+            <Sparkles className="w-4 h-4 mr-2" />
+            Inteligência Artificial
           </TabsTrigger>
           {hasPermission('settings.permissions') && (
             <TabsTrigger value="permissions">
@@ -431,6 +436,11 @@ export function SystemSettings() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* AI Configuration */}
+        <TabsContent value="ai">
+          <AIProviderConfig />
         </TabsContent>
 
         {/* Permissions Management - Admin Only */}

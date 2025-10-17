@@ -17,7 +17,14 @@ import {
   Folder,
   File,
   Home,
-  MoreVertical
+  MoreVertical,
+  FolderInput,
+  Edit3,
+  History,
+  Link2,
+  FileText,
+  Upload,
+  Download
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -32,6 +39,12 @@ import { ItemContextMenu } from '../common/ContextMenu';
 import { MoveDialog, RenameDialog, HistoryDialog, PropertiesDialog } from '../common/ItemDialogs';
 import { pageOperations } from '../common/ItemOperations';
 import { TrashService } from '../../services/TrashService';
+import { DeleteConfirmDialog } from '../common/DeleteConfirmDialog';
+import { DropdownMenuSeparator } from '../ui/dropdown-menu';
+import { UploadConfirmDialog } from '../common/UploadConfirmDialog';
+import { PageUploadDialog } from './PageUploadDialog';
+import { PageVersionHistory } from './PageVersionHistory';
+import { PageVersionService } from '../../services/PageVersionService';
 
 interface Page {
   id: string;
@@ -83,6 +96,10 @@ export function PageManager({ currentUser }: PageManagerProps) {
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
   const [propertiesDialog, setPropertiesDialog] = useState<{ open: boolean; item: Page | null }>({ open: false, item: null });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: Page | null; isFolder: boolean }>({ open: false, item: null, isFolder: false });
+  const [replaceConfirmDialog, setReplaceConfirmDialog] = useState<{ open: boolean; page: Page | null; existingPage: Page | null }>({ open: false, page: null, existingPage: null });
+  const [uploadDialog, setUploadDialog] = useState(false);
+  const [versionHistoryDialog, setVersionHistoryDialog] = useState<{ open: boolean; pageId: string | null }>({ open: false, pageId: null });
   
   // Snippets disponíveis - carregados do SnippetManager
   const [availableSnippets, setAvailableSnippets] = useState<Array<{ id: string; name: string; content: string }>>([]);
@@ -256,11 +273,68 @@ export function PageManager({ currentUser }: PageManagerProps) {
     setShowEditor(true);
   };
 
+  const confirmReplacePage = () => {
+    if (!replaceConfirmDialog.page || !replaceConfirmDialog.existingPage) return;
+
+    const pageToSave = {
+      ...replaceConfirmDialog.page,
+      id: replaceConfirmDialog.existingPage.id, // Use existing ID to replace
+      folder: currentPath,
+      createdAt: replaceConfirmDialog.existingPage.createdAt,
+      updatedAt: new Date().toISOString()
+    };
+
+    const updatedPages = pages.map(p => 
+      p.id === replaceConfirmDialog.existingPage!.id ? pageToSave : p
+    );
+
+    savePages(updatedPages);
+    toast.success('Página substituída com sucesso!');
+
+    // Update HTML file
+    saveHTMLFile({
+      type: 'page',
+      id: pageToSave.id,
+      title: pageToSave.title,
+      slug: pageToSave.slug,
+      content: pageToSave.content,
+      folder: currentPath
+    });
+
+    // Update link
+    LinkManagementService.updateLinkForResource({
+      resourceId: pageToSave.id,
+      newSlug: pageToSave.slug,
+      newTitle: pageToSave.title,
+      newFolder: pageToSave.folder
+    });
+
+    setReplaceConfirmDialog({ open: false, page: null, existingPage: null });
+    setShowEditor(false);
+    setEditingPage(null);
+  };
+
   const handleSave = (page: Page) => {
     let updatedPages;
     const isNew = !page.id || !pages.some(p => p.id === page.id);
     
     if (isNew) {
+      // Check if a page with the same slug already exists in the same folder
+      const existingPage = pages.find(p => 
+        p.slug === page.slug && 
+        (p.folder || '') === (page.folder || currentPath)
+      );
+
+      if (existingPage) {
+        // Show confirmation dialog
+        setReplaceConfirmDialog({
+          open: true,
+          page: page,
+          existingPage: existingPage
+        });
+        return;
+      }
+
       const newPage = {
         ...page,
         id: page.id || Date.now().toString(),
@@ -269,6 +343,14 @@ export function PageManager({ currentUser }: PageManagerProps) {
         updatedAt: new Date().toISOString()
       };
       updatedPages = [newPage, ...pages];
+      
+      // Criar versão inicial
+      try {
+        PageVersionService.createVersion(newPage.id, 'Versão inicial');
+      } catch (error) {
+        console.error('Erro ao criar versão:', error);
+      }
+      
       toast.success('Página criada com sucesso!');
       
       // Salva arquivo HTML
@@ -295,11 +377,20 @@ export function PageManager({ currentUser }: PageManagerProps) {
         }
       });
     } else {
+      const updatedPage = { ...page, updatedAt: new Date().toISOString() };
       updatedPages = pages.map(p => 
         p.id === page.id 
-          ? { ...page, updatedAt: new Date().toISOString() }
+          ? updatedPage
           : p
       );
+      
+      // Criar nova versão ao atualizar
+      try {
+        PageVersionService.createVersion(page.id, 'Atualização manual');
+      } catch (error) {
+        console.error('Erro ao criar versão:', error);
+      }
+      
       toast.success('Página atualizada!');
       
       // Atualiza arquivo HTML
@@ -326,23 +417,44 @@ export function PageManager({ currentUser }: PageManagerProps) {
     setEditingPage(null);
   };
 
-  const handleDelete = (id: string) => {
-    const page = pages.find(p => p.id === id);
-    if (!page) return;
+  const handleDeleteConfirm = () => {
+    if (deleteDialog.isFolder) {
+      // Deletar pasta
+      const folder = folders.find(f => f.id === deleteDialog.item?.id);
+      if (!folder) return;
 
-    // Mover para lixeira ao invés de deletar permanentemente
-    TrashService.moveToTrash(
-      { ...page, name: page.title },
-      'page',
-      currentUser?.email || 'unknown'
-    );
+      // Mover pasta para lixeira
+      TrashService.moveToTrash(
+        { ...folder, name: folder.name },
+        'folder',
+        currentUser?.email || 'unknown'
+      );
 
-    const updatedPages = pages.filter(p => p.id !== id);
-    savePages(updatedPages);
-    deleteHTMLFile(page.slug, 'page');
-    
-    // Deleta links associados
-    LinkManagementService.deleteLinksForResource(id);
+      const updatedFolders = folders.filter(f => f.path !== folder.path);
+      saveFolders(updatedFolders);
+    } else {
+      // Deletar página
+      const page = deleteDialog.item;
+      if (!page) return;
+
+      // Mover para lixeira ao invés de deletar permanentemente
+      TrashService.moveToTrash(
+        { ...page, name: page.title },
+        'page',
+        currentUser?.email || 'unknown'
+      );
+
+      const updatedPages = pages.filter(p => p.id !== page.id);
+      savePages(updatedPages);
+      deleteHTMLFile(page.slug, 'page');
+      
+      // Deleta links associados
+      LinkManagementService.deleteLinksForResource(page.id);
+    }
+  };
+
+  const handleDelete = (page: Page) => {
+    setDeleteDialog({ open: true, item: page, isFolder: false });
   };
 
   const handleDeleteFolder = (path: string) => {
@@ -350,20 +462,15 @@ export function PageManager({ currentUser }: PageManagerProps) {
     const hasPages = pages.some(p => p.folder === path || p.folder?.startsWith(path + '/'));
     const hasSubfolders = folders.some(f => f.path.startsWith(path + '/'));
     
-    if (hasPages || hasSubfolders) {
-      toast.error('A pasta não está vazia. Remova o conteúdo primeiro.');
-      return;
-    }
-
     const folder = folders.find(f => f.path === path);
     if (!folder) return;
 
-    // Mover pasta para lixeira
-    TrashService.moveToTrash(
-      { ...folder, name: folder.name },
-      'folder',
-      currentUser?.email || 'unknown'
-    );
+    // Abrir modal mesmo com conteúdo (o modal mostrará o aviso)
+    setDeleteDialog({ 
+      open: true, 
+      item: { ...folder, title: folder.name } as any, 
+      isFolder: true 
+    });
 
     const updatedFolders = folders.filter(f => f.path !== path);
     saveFolders(updatedFolders);
@@ -403,7 +510,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
   };
 
   const handleContextHistory = (page: Page) => {
-    setHistoryDialog({ open: true, item: page });
+    setVersionHistoryDialog({ open: true, pageId: page.id });
   };
 
   const handleContextCopyPath = (page: Page) => {
@@ -416,7 +523,29 @@ export function PageManager({ currentUser }: PageManagerProps) {
   };
 
   const handleContextDelete = (page: Page) => {
-    handleDelete(page.id);
+    handleDelete(page);
+  };
+
+  const handleContextDownload = (page: Page) => {
+    try {
+      PageVersionService.exportPage(page.id);
+      toast.success('Página exportada com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao exportar página', {
+        description: error.message
+      });
+    }
+  };
+
+  const handleUploadSuccess = (page: PageData) => {
+    loadPages();
+    toast.success('Página importada com sucesso!', {
+      description: `"${page.title}" foi adicionada ao sistema`
+    });
+  };
+
+  const handleVersionRestore = (page: PageData) => {
+    loadPages();
   };
 
   const handleMoveConfirm = (newPath: string) => {
@@ -572,6 +701,14 @@ export function PageManager({ currentUser }: PageManagerProps) {
             </Button>
           </div>
 
+          <Button
+            variant="outline"
+            onClick={() => setUploadDialog(true)}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Importar
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button>
@@ -605,6 +742,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
                 onRename: () => handleContextRename(item.page!),
                 onHistory: () => handleContextHistory(item.page!),
                 onCopyPath: () => handleContextCopyPath(item.page!),
+                onDownload: () => handleContextDownload(item.page!),
                 onProperties: () => handleContextProperties(item.page!),
                 onDelete: () => handleContextDelete(item.page!)
               } : {}}
@@ -658,10 +796,62 @@ export function PageManager({ currentUser }: PageManagerProps) {
                               <Edit className="w-4 h-4 mr-2" />
                               Editar
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextCopy(item.page);
+                            }}>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copiar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextMove(item.page);
+                            }}>
+                              <FolderInput className="w-4 h-4 mr-2" />
+                              Mover
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextRename(item.page);
+                            }}>
+                              <Edit3 className="w-4 h-4 mr-2" />
+                              Renomear
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextHistory(item.page);
+                            }}>
+                              <History className="w-4 h-4 mr-2" />
+                              Histórico
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextCopyPath(item.page);
+                            }}>
+                              <Link2 className="w-4 h-4 mr-2" />
+                              Copiar Caminho
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextDownload(item.page);
+                            }}>
+                              <Download className="w-4 h-4 mr-2" />
+                              Baixar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.page) handleContextProperties(item.page);
+                            }}>
+                              <FileText className="w-4 h-4 mr-2" />
+                              Propriedades
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDelete(item.id);
+                                if (item.page) handleDelete(item.page);
                               }}
                               className="text-red-600"
                             >
@@ -790,7 +980,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDelete(item.id)}
+                              onClick={() => handleDelete(item.page!)}
                               className="text-red-600 hover:text-red-700"
                             >
                               <Trash className="w-4 h-4" />
@@ -866,6 +1056,38 @@ export function PageManager({ currentUser }: PageManagerProps) {
           'Resumo': propertiesDialog.item.excerpt || 'Não definido'
         } : undefined}
       />
+
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open, item: null, isFolder: false })}
+        itemName={deleteDialog.item?.title || deleteDialog.item?.name || ''}
+        itemType={deleteDialog.isFolder ? 'pasta' : 'página'}
+        onConfirm={handleDeleteConfirm}
+        hasChildren={deleteDialog.isFolder ? (
+          pages.some(p => p.folder === (deleteDialog.item as any)?.path || p.folder?.startsWith((deleteDialog.item as any)?.path + '/')) ||
+          folders.some(f => f.path.startsWith((deleteDialog.item as any)?.path + '/'))
+        ) : false}
+        childrenCount={deleteDialog.isFolder ? (
+          pages.filter(p => p.folder === (deleteDialog.item as any)?.path || p.folder?.startsWith((deleteDialog.item as any)?.path + '/')).length +
+          folders.filter(f => f.path.startsWith((deleteDialog.item as any)?.path + '/')).length
+        ) : 0}
+        currentPath={`/Arquivos${currentPath ? '/' + currentPath : ''}`}
+      />
+
+      <PageUploadDialog
+        open={uploadDialog}
+        onClose={() => setUploadDialog(false)}
+        onSuccess={handleUploadSuccess}
+      />
+
+      {versionHistoryDialog.pageId && (
+        <PageVersionHistory
+          open={versionHistoryDialog.open}
+          onClose={() => setVersionHistoryDialog({ open: false, pageId: null })}
+          pageId={versionHistoryDialog.pageId}
+          onRestore={handleVersionRestore}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,8 @@ import {
   History, 
   Link2, 
   FileText, 
-  Trash2 
+  Trash2,
+  Download
 } from 'lucide-react';
 import {
   ContextMenu,
@@ -23,6 +24,7 @@ export interface ContextMenuAction {
   onCopyPath?: () => void;
   onProperties?: () => void;
   onDelete?: () => void;
+  onDownload?: () => void;
 }
 
 interface ItemContextMenuProps {
@@ -77,6 +79,13 @@ export function ItemContextMenu({ children, actions, disabled = false }: ItemCon
           <ContextMenuItem onClick={actions.onCopyPath}>
             <Link2 className="w-4 h-4 mr-2" />
             Copiar Caminho
+          </ContextMenuItem>
+        )}
+
+        {actions.onDownload && (
+          <ContextMenuItem onClick={actions.onDownload}>
+            <Download className="w-4 h-4 mr-2" />
+            Baixar
           </ContextMenuItem>
         )}
 

@@ -235,9 +235,15 @@ export function LinkManager({ currentUser }: LinkManagerProps) {
     }
   };
 
-  const handleCopyLink = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast.success('Link copiado!');
+  const handleCopyLink = async (url: string) => {
+    const { copyToClipboard } = await import('../../utils/clipboard');
+    const success = await copyToClipboard(url);
+    
+    if (success) {
+      toast.success('Link copiado!');
+    } else {
+      toast.error('Erro ao copiar link');
+    }
   };
 
   const handleExportLinks = () => {

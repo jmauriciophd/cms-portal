@@ -19,6 +19,15 @@ interface Article {
   createdAt?: string;
   updatedAt?: string;
   slug: string;
+  featuredImage?: string;
+  categories?: string[];
+  tags?: string[];
+  publishedDate?: string;
+  meta?: {
+    description?: string;
+    robots?: string;
+    keywords?: string;
+  };
 }
 
 interface ArticleEditorProps {
@@ -203,7 +212,7 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
                           onClick={() => setShowMediaLibrary(true)}
                         >
                           <ImageIcon className="w-4 h-4 mr-2" />
-                          Biblioteca de Mídia
+                          Inserir Mídia
                         </Button>
                       </div>
                       <Textarea

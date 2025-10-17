@@ -77,11 +77,17 @@ export function FilePropertiesSheet({ file, open, onOpenChange }: FileProperties
     return <FileText className="w-12 h-12 text-gray-500" />;
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(label);
-    toast.success(`${label} copiado!`);
-    setTimeout(() => setCopied(null), 2000);
+  const copyToClipboard = async (text: string, label: string) => {
+    const { copyToClipboard: copy } = await import('../../utils/clipboard');
+    const success = await copy(text);
+    
+    if (success) {
+      setCopied(label);
+      toast.success(`${label} copiado!`);
+      setTimeout(() => setCopied(null), 2000);
+    } else {
+      toast.error(`Erro ao copiar ${label}`);
+    }
   };
 
   return (

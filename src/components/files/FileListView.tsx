@@ -171,6 +171,11 @@ export function FileListView({
                           {item.mimeType?.startsWith('image/') ? 'Visualizar' : 
                            item.name.endsWith('.txt') ? 'Editar' : 'Abrir'}
                         </DropdownMenuItem>
+                        {item.mimeType?.startsWith('image/') && (
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'edit-image'); }}>
+                            Editar Imagem
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onContextMenu(item, 'download'); }}>
                           Download
                         </DropdownMenuItem>

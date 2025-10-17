@@ -500,6 +500,37 @@ export class SecurityService {
   }
 
   /**
+   * Obtém o usuário atualmente autenticado
+   */
+  static getCurrentUser(): any | null {
+    try {
+      const userStr = localStorage.getItem('currentUser');
+      if (!userStr) {
+        return null;
+      }
+      return JSON.parse(userStr);
+    } catch (error) {
+      console.error('Erro ao obter usuário atual:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Define o usuário atual
+   */
+  static setCurrentUser(user: any): void {
+    try {
+      if (user) {
+        localStorage.setItem('currentUser', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('currentUser');
+      }
+    } catch (error) {
+      console.error('Erro ao definir usuário atual:', error);
+    }
+  }
+
+  /**
    * Valida objeto de forma recursiva
    */
   static validateObject(obj: any, schema: any): ValidationResult {

@@ -221,9 +221,15 @@ export function PageBuilder() {
     }
   };
 
-  const copyToClipboard = (text: string, type: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${type} copiado para a área de transferência!`);
+  const copyToClipboard = async (text: string, type: string) => {
+    const { copyToClipboard: copy } = await import('../../utils/clipboard');
+    const success = await copy(text);
+    
+    if (success) {
+      toast.success(`${type} copiado para a área de transferência!`);
+    } else {
+      toast.error(`Erro ao copiar ${type}`);
+    }
   };
 
   const downloadFile = (content: string, filename: string) => {

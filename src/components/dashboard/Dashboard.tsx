@@ -29,13 +29,14 @@ import { LinkManager } from '../links/LinkManager';
 import { TemplateManager } from '../templates/TemplateManager';
 import { SecurityMonitor } from '../security/SecurityMonitor';
 import { TrashViewer } from '../files/TrashViewer';
+import { EditorDemo } from '../editor/EditorDemo';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash' | 'editorDemo';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -44,6 +45,7 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const menuItems = [
     { id: 'home', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'editor'] },
     { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
+    { id: 'editorDemo', icon: FileText, label: 'Editor Inteligente', roles: ['admin', 'editor'] },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },
     { id: 'trash', icon: Trash2, label: 'Lixeira', roles: ['admin', 'editor'] },
     { id: 'menu', icon: MenuIcon, label: 'Menu', roles: ['admin'] },
@@ -62,6 +64,8 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <DashboardHome currentUser={currentUser} onNavigate={setCurrentView} />;
       case 'pages':
         return <PageManager currentUser={currentUser} />;
+      case 'editorDemo':
+        return <EditorDemo />;
       case 'files':
         return <FileManager />;
       case 'trash':

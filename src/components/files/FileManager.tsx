@@ -25,7 +25,7 @@ import {
   History,
   Lock
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, VisuallyHidden } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import {
@@ -48,6 +48,8 @@ import { FileListView } from './FileListView';
 import { Grid3x3, List, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { LinkManagementService } from '../../services/LinkManagementService';
+import { UploadConfirmDialog, UploadConfirmMultipleDialog } from '../common/UploadConfirmDialog';
+import { downloadFile, downloadFolder, prepareFolderStructure } from '../../utils/download';
 
 interface FileItem {
   id: string;
@@ -100,9 +102,35 @@ export function FileManager() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showTextEditor, setShowTextEditor] = useState(false);
   const [editingTextFile, setEditingTextFile] = useState<FileItem | null>(null);
+  
+  // Upload confirmation states
+  const [showUploadConfirm, setShowUploadConfirm] = useState(false);
+  const [showUploadConfirmMultiple, setShowUploadConfirmMultiple] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState<Array<{ file: globalThis.File; data: FileItem }>>([]);
+  const [conflictingItems, setConflictingItems] = useState<Array<{ name: string; type: string }>>([]);
 
   useEffect(() => {
     loadFiles();
+
+    // Listener para recarregar quando arquivos mudarem (detecta uploads do MediaLibrarySelector)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'files') {
+        loadFiles();
+      }
+    };
+
+    // Listener customizado para mudanças na mesma aba
+    const handleFilesUpdate = () => {
+      loadFiles();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('filesUpdated', handleFilesUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('filesUpdated', handleFilesUpdate);
+    };
   }, []);
 
   const loadFiles = () => {
@@ -185,6 +213,8 @@ export function FileManager() {
   const saveFiles = (updatedFiles: FileItem[]) => {
     localStorage.setItem('files', JSON.stringify(updatedFiles));
     setFiles(updatedFiles);
+    // Notificar outros componentes sobre a mudança
+    window.dispatchEvent(new Event('filesUpdated'));
   };
 
   const validateFile = (file: globalThis.File): { valid: boolean; error?: string } => {
@@ -312,13 +342,16 @@ export function FileManager() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = e.target.files;
-    if (!uploadedFiles || uploadedFiles.length === 0) return;
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress(0);
 
-    const newFiles: FileItem[] = [];
+    const newFiles: Array<{ file: globalThis.File; data: FileItem }> = [];
     const errors: string[] = [];
+    const conflicts: Array<{ name: string; type: string }> = [];
 
     for (let i = 0; i < uploadedFiles.length; i++) {
       const file = uploadedFiles[i];
@@ -343,57 +376,136 @@ export function FileManager() {
           fileReader.readAsDataURL(file);
         });
 
+        const filePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
+        
+        // Check if file already exists
+        const existingFile = files.find(f => f.path === filePath);
+        
         const newFile: FileItem = {
-          id: Date.now().toString() + Math.random(),
+          id: existingFile?.id || (Date.now().toString() + Math.random()),
           name: file.name,
           type: 'file',
-          path: currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`,
+          path: filePath,
           parent: currentPath,
           size: file.size,
           url: fileData,
           mimeType: file.type,
-          createdAt: new Date().toISOString(),
+          createdAt: existingFile?.createdAt || new Date().toISOString(),
           modifiedAt: new Date().toISOString()
         };
 
-        newFiles.push(newFile);
-
-        // Gera link para arquivo enviado
-        const resourceType = file.type.startsWith('image/') ? 'image' : 
-                           file.type === 'application/pdf' ? 'pdf' : 'file';
-        LinkManagementService.createLinkForResource({
-          title: file.name,
-          slug: file.name.toLowerCase().replace(/\s+/g, '-').replace(/\.[^/.]+$/, ''),
-          resourceType: resourceType as any,
-          resourceId: newFile.id,
-          folder: currentPath,
-          description: `${resourceType === 'image' ? 'Imagem' : resourceType === 'pdf' ? 'PDF' : 'Arquivo'}: ${file.name}`,
-          metadata: {
-            mimeType: file.type,
-            fileSize: file.size
-          }
-        });
+        if (existingFile) {
+          // File exists - add to conflicts
+          const fileType = file.type.startsWith('image/') ? 'imagem' : 'arquivo';
+          conflicts.push({ name: file.name, type: fileType });
+          newFiles.push({ file, data: newFile });
+        } else {
+          // New file - add directly
+          newFiles.push({ file, data: newFile });
+        }
       } catch (error) {
         errors.push(`${file.name}: Erro ao processar arquivo`);
       }
     }
 
-    if (newFiles.length > 0) {
-      saveFiles([...files, ...newFiles]);
-      toast.success(`${newFiles.length} arquivo(s) enviado(s) com sucesso!`);
-    }
-
-    if (errors.length > 0) {
-      toast.error(`Alguns arquivos não foram enviados:\n${errors.join('\n')}`);
-    }
-
     setIsUploading(false);
     setUploadProgress(0);
-    
+
+    if (errors.length > 0) {
+      toast.error(`Alguns arquivos não puderam ser processados:\n${errors.join('\n')}`);
+    }
+
+    // If there are conflicts, show confirmation dialog
+    if (conflicts.length > 0) {
+      setPendingUploads(newFiles);
+      setConflictingItems(conflicts);
+      
+      if (conflicts.length === 1 && newFiles.length === 1) {
+        setShowUploadConfirm(true);
+      } else {
+        setShowUploadConfirmMultiple(true);
+      }
+    } else if (newFiles.length > 0) {
+      // No conflicts - save directly
+      processUploadedFilesDirectly(newFiles);
+    }
+
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const processUploadedFilesDirectly = (filesToAdd: Array<{ file: globalThis.File; data: FileItem }>) => {
+    if (filesToAdd.length === 0) {
+      toast.info('Nenhum arquivo foi adicionado');
+      return;
+    }
+
+    // Separate new files and files to replace
+    const newFilesList: FileItem[] = [];
+    const filesToReplace: string[] = [];
+
+    filesToAdd.forEach(({ file, data }) => {
+      const existingFile = files.find(f => f.path === data.path);
+      if (existingFile) {
+        filesToReplace.push(existingFile.id);
+      }
+      newFilesList.push(data);
+    });
+
+    // Remove files that will be replaced
+    const updatedFiles = files.filter(f => !filesToReplace.includes(f.id));
+    
+    // Add new files
+    saveFiles([...updatedFiles, ...newFilesList]);
+
+    // Generate links for new files
+    filesToAdd.forEach(({ file, data }) => {
+      const resourceType = file.type.startsWith('image/') ? 'image' : 
+                         file.type === 'application/pdf' ? 'pdf' : 'file';
+      LinkManagementService.createLinkForResource({
+        title: file.name,
+        slug: file.name.toLowerCase().replace(/\s+/g, '-').replace(/\.[^/.]+$/, ''),
+        resourceType: resourceType as any,
+        resourceId: data.id,
+        folder: currentPath,
+        description: `${resourceType === 'image' ? 'Imagem' : resourceType === 'pdf' ? 'PDF' : 'Arquivo'}: ${file.name}`,
+        metadata: {
+          mimeType: file.type,
+          fileSize: file.size
+        }
+      });
+    });
+
+    const replacedCount = filesToReplace.length;
+    const addedCount = filesToAdd.length - replacedCount;
+
+    if (replacedCount > 0 && addedCount > 0) {
+      toast.success(`${addedCount} arquivo(s) adicionado(s) e ${replacedCount} substituído(s)!`);
+    } else if (replacedCount > 0) {
+      toast.success(`${replacedCount} arquivo(s) substituído(s) com sucesso!`);
+    } else {
+      toast.success(`${addedCount} arquivo(s) enviado(s) com sucesso!`);
+    }
+  };
+
+  const processUploadedFiles = (filesToProcess: string[]) => {
+    const filesToAdd = pendingUploads.filter(pu => filesToProcess.includes(pu.file.name));
+    
+    if (filesToAdd.length === 0) {
+      toast.info('Nenhum arquivo foi adicionado');
+      setPendingUploads([]);
+      setConflictingItems([]);
+      return;
+    }
+
+    // Use a função direta
+    processUploadedFilesDirectly(filesToAdd);
+    
+    // Limpar estados
+    setPendingUploads([]);
+    setConflictingItems([]);
   };
 
   const handleDelete = (item: FileItem) => {
@@ -426,24 +538,26 @@ export function FileManager() {
     }
   };
 
-  const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url)
-      .then(() => {
-        toast.success('URL copiada para a área de transferência!');
-      })
-      .catch(() => {
-        toast.error('Não foi possível copiar. URL: ' + url);
-      });
+  const handleCopyUrl = async (url: string) => {
+    const { copyToClipboard } = await import('../../utils/clipboard');
+    const success = await copyToClipboard(url);
+    
+    if (success) {
+      toast.success('URL copiada para a área de transferência!');
+    } else {
+      toast.error('Não foi possível copiar. URL: ' + url);
+    }
   };
 
-  const handleCopyPath = (path: string) => {
-    navigator.clipboard.writeText(path)
-      .then(() => {
-        toast.success('Caminho copiado para a área de transferência!');
-      })
-      .catch(() => {
-        toast.error('Não foi possível copiar. Caminho: ' + path);
-      });
+  const handleCopyPath = async (path: string) => {
+    const { copyToClipboard } = await import('../../utils/clipboard');
+    const success = await copyToClipboard(path);
+    
+    if (success) {
+      toast.success('Caminho copiado para a área de transferência!');
+    } else {
+      toast.error('Não foi possível copiar. Caminho: ' + path);
+    }
   };
 
   const handleShowProperties = (item: FileItem) => {
@@ -476,13 +590,45 @@ export function FileManager() {
   };
 
   const handleDownload = (item: FileItem) => {
-    if (!item.url) return;
+    if (item.type === 'folder') {
+      handleDownloadFolder(item);
+    } else {
+      if (!item.url) {
+        toast.error('Arquivo sem URL de download');
+        return;
+      }
+      downloadFile({
+        name: item.name,
+        url: item.url,
+        mimeType: item.mimeType
+      });
+    }
+  };
+
+  const handleDownloadFolder = (folder: FileItem) => {
+    // Get all files and subfolders in this folder
+    const allFolderItems = files.filter(f => f.path.startsWith(folder.path));
     
-    const link = document.createElement('a');
-    link.href = item.url;
-    link.download = item.name;
-    link.click();
-    toast.success('Download iniciado');
+    if (allFolderItems.length === 0) {
+      toast.info('Pasta vazia - nada para baixar');
+      return;
+    }
+
+    // Prepare folder structure for download
+    const folderStructure = prepareFolderStructure(
+      folder.name,
+      allFolderItems.map(f => ({
+        name: f.name,
+        path: f.path,
+        url: f.url || '',
+        mimeType: f.mimeType,
+        type: f.type
+      })),
+      folder.path
+    );
+
+    // Download as ZIP
+    downloadFolder(folderStructure);
   };
 
   const handleOpenFolder = (folder: FileItem) => {
@@ -726,6 +872,7 @@ export function FileManager() {
           onFileClick={handleFileClick}
           onContextMenu={(file, action) => {
             if (action === 'download') handleDownload(file);
+            else if (action === 'edit-image') handleEditImage(file);
             else if (action === 'rename') {
               setOperationFile(file);
               setOperationType('rename');
@@ -824,6 +971,15 @@ export function FileManager() {
                               Copiar URL
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      {item.type === 'folder' && (
+                        <>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Baixar Pasta (ZIP)
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                         </>
                       )}
@@ -995,6 +1151,9 @@ export function FileManager() {
                 )}
               </div>
             </DialogTitle>
+            <DialogDescription>
+              Visualize a imagem em tamanho completo. Use os botões acima para editar ou fazer download.
+            </DialogDescription>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-auto flex items-center justify-center bg-gray-100 rounded-lg p-4">
             {selectedImage?.url && (
@@ -1015,7 +1174,13 @@ export function FileManager() {
 
       {/* Image Editor Dialog */}
       <Dialog open={showImageEditor} onOpenChange={setShowImageEditor}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0">
+        <DialogContent className="max-w-[99vw] max-h-[98vh] w-[99vw] h-[98vh] p-0" hideCloseButton>
+          <VisuallyHidden>
+            <DialogTitle>Editor de Imagem</DialogTitle>
+            <DialogDescription>
+              Edite sua imagem usando ferramentas de ajuste, filtros, transformação e redimensionamento.
+            </DialogDescription>
+          </VisuallyHidden>
           {selectedImage?.url && (
             <ImageEditor
               imageUrl={selectedImage.url}
@@ -1099,6 +1264,12 @@ export function FileManager() {
       {operationFile && operationType === 'history' && (
         <Dialog open={true} onOpenChange={() => { setOperationType(null); setOperationFile(null); }}>
           <DialogContent className="max-w-5xl max-h-[90vh]">
+            <VisuallyHidden>
+              <DialogTitle>Histórico de Versões</DialogTitle>
+              <DialogDescription>
+                Visualize e restaure versões anteriores de {operationFile.name}.
+              </DialogDescription>
+            </VisuallyHidden>
             <VersionManager
               entityId={operationFile.id}
               entityType="file"
@@ -1140,6 +1311,47 @@ export function FileManager() {
           onClose={() => {
             setShowTextEditor(false);
             setEditingTextFile(null);
+          }}
+        />
+      )}
+
+      {/* Upload Confirmation Dialogs */}
+      {showUploadConfirm && conflictingItems.length === 1 && (
+        <UploadConfirmDialog
+          open={showUploadConfirm}
+          onOpenChange={setShowUploadConfirm}
+          itemName={conflictingItems[0].name}
+          itemType={conflictingItems[0].type as any}
+          onConfirm={() => {
+            processUploadedFiles(pendingUploads.map(pu => pu.file.name));
+          }}
+          onCancel={() => {
+            setPendingUploads([]);
+            setConflictingItems([]);
+          }}
+        />
+      )}
+
+      {showUploadConfirmMultiple && conflictingItems.length > 0 && (
+        <UploadConfirmMultipleDialog
+          open={showUploadConfirmMultiple}
+          onOpenChange={setShowUploadConfirmMultiple}
+          items={conflictingItems}
+          onConfirm={(itemsToReplace) => {
+            if (itemsToReplace.length === 0) {
+              // Skip all conflicts - only add non-conflicting files
+              const nonConflictingFiles = pendingUploads.filter(
+                pu => !conflictingItems.some(ci => ci.name === pu.file.name)
+              );
+              processUploadedFiles(nonConflictingFiles.map(pu => pu.file.name));
+            } else {
+              // Replace specified items
+              processUploadedFiles(itemsToReplace);
+            }
+          }}
+          onCancel={() => {
+            setPendingUploads([]);
+            setConflictingItems([]);
           }}
         />
       )}

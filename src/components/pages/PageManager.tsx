@@ -117,6 +117,36 @@ export function PageManager({ currentUser }: PageManagerProps) {
     loadSnippets();
   }, []);
 
+  useEffect(() => {
+    // Listener para abrir página da pesquisa global
+    const handleSelectItem = (e: CustomEvent) => {
+      const { itemId, viewId } = e.detail;
+      if (viewId === 'pages') {
+        // Buscar página diretamente do localStorage
+        const storedPages = localStorage.getItem('pages');
+        const allPages: Page[] = storedPages ? JSON.parse(storedPages) : [];
+        const pageToEdit = allPages.find(p => p.id === itemId);
+        
+        if (pageToEdit) {
+          // Navegar para a pasta da página se necessário
+          if (pageToEdit.folder) {
+            setCurrentPath(pageToEdit.folder);
+          }
+          // Abrir o editor
+          setEditingPage(pageToEdit);
+          setShowEditor(true);
+          toast.success(`Editando página: ${pageToEdit.title}`);
+        }
+      }
+    };
+
+    window.addEventListener('selectItem', handleSelectItem as EventListener);
+
+    return () => {
+      window.removeEventListener('selectItem', handleSelectItem as EventListener);
+    };
+  }, []);
+
   // Carregar snippets do SnippetManager
   const loadSnippets = () => {
     const stored = localStorage.getItem('snippets');

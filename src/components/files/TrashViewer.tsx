@@ -43,8 +43,17 @@ export function TrashViewer({ onRestore, onClose }: TrashViewerProps) {
     if (restored) {
       // Restaurar o item de volta ao localStorage apropriado
       if (item.type === 'file' || item.type === 'folder') {
-        // Restaurar arquivo/pasta
-        const currentFiles = JSON.parse(localStorage.getItem('files') || '[]');
+        // Restaurar arquivo/pasta com validação
+        let currentFiles: any[] = [];
+        try {
+          const stored = localStorage.getItem('files') || '[]';
+          const parsed = JSON.parse(stored);
+          currentFiles = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Erro ao carregar arquivos:', e);
+          currentFiles = [];
+        }
+        
         const restoredItem = {
           ...item.data,
           updatedAt: new Date().toISOString()

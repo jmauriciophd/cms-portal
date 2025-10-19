@@ -168,12 +168,37 @@ export function useRealtimeStats(enabled: boolean = true) {
     await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 150));
 
     try {
-      // Buscar dados REAIS do localStorage
-      const articles = JSON.parse(localStorage.getItem('articles') || '[]');
-      const pages = JSON.parse(localStorage.getItem('pages') || '[]');
-      const files = JSON.parse(localStorage.getItem('files') || '[]');
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const auditLogs = JSON.parse(localStorage.getItem('auditLogs') || '[]');
+      // Buscar dados REAIS do localStorage com validação
+      let articles: any[] = [];
+      let pages: any[] = [];
+      let files: any[] = [];
+      let users: any[] = [];
+      let auditLogs: any[] = [];
+      
+      try {
+        articles = JSON.parse(localStorage.getItem('articles') || '[]');
+        if (!Array.isArray(articles)) articles = [];
+      } catch (e) { articles = []; }
+      
+      try {
+        pages = JSON.parse(localStorage.getItem('pages') || '[]');
+        if (!Array.isArray(pages)) pages = [];
+      } catch (e) { pages = []; }
+      
+      try {
+        files = JSON.parse(localStorage.getItem('files') || '[]');
+        if (!Array.isArray(files)) files = [];
+      } catch (e) { files = []; }
+      
+      try {
+        users = JSON.parse(localStorage.getItem('users') || '[]');
+        if (!Array.isArray(users)) users = [];
+      } catch (e) { users = []; }
+      
+      try {
+        auditLogs = JSON.parse(localStorage.getItem('auditLogs') || '[]');
+        if (!Array.isArray(auditLogs)) auditLogs = [];
+      } catch (e) { auditLogs = []; }
 
       // Calcular estatísticas REAIS
       const publishedArticles = articles.filter((a: any) => a.status === 'published').length;

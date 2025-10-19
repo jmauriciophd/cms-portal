@@ -59,6 +59,31 @@ export function SnippetManager({ currentUser }: SnippetManagerProps) {
     loadSnippets();
   }, []);
 
+  useEffect(() => {
+    // Listener para abrir snippet da pesquisa global
+    const handleSelectItem = (e: CustomEvent) => {
+      const { itemId, viewId } = e.detail;
+      if (viewId === 'snippets') {
+        const snippetToEdit = snippets.find(s => s.id === itemId);
+        if (snippetToEdit) {
+          setEditingSnippet(snippetToEdit);
+          setName(snippetToEdit.name);
+          setDescription(snippetToEdit.description || '');
+          setContent(snippetToEdit.content);
+          setCategory(snippetToEdit.category);
+          setShowEditDialog(true);
+          toast.success(`Editando snippet: ${snippetToEdit.name}`);
+        }
+      }
+    };
+
+    window.addEventListener('selectItem', handleSelectItem as EventListener);
+
+    return () => {
+      window.removeEventListener('selectItem', handleSelectItem as EventListener);
+    };
+  }, [snippets]);
+
   const loadSnippets = () => {
     const stored = localStorage.getItem('snippets');
     if (stored) {

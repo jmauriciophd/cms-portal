@@ -1,5 +1,6 @@
 // Sistema de Lixeira/Arquivos Deletados
 import { toast } from 'sonner@2.0.3';
+import { StorageQuotaService } from './StorageQuotaService';
 
 export interface DeletedItem {
   id: string;
@@ -15,7 +16,8 @@ export interface DeletedItem {
 
 export class TrashService {
   private static STORAGE_KEY = 'cms-trash';
-  private static MAX_ITEMS = 100; // Máximo de itens na lixeira
+  private static MAX_ITEMS = 50; // Reduzido de 100 para 50
+  private static MAX_AGE_DAYS = 30; // Itens mais antigos que isso serão auto-removidos
 
   // Obter todos os itens da lixeira
   static getTrashItems(): DeletedItem[] {
@@ -30,12 +32,36 @@ export class TrashService {
     }
   }
 
+  // Limpar itens antigos automaticamente
+  private static autoCleanup(): number {
+    const trash = this.getTrashItems();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - this.MAX_AGE_DAYS);
+
+    const filteredTrash = trash.filter(item => {
+      const deletedDate = new Date(item.deletedAt);
+      return deletedDate >= cutoffDate;
+    });
+
+    const removedCount = trash.length - filteredTrash.length;
+    
+    if (removedCount > 0) {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredTrash));
+      console.log(`${removedCount} itens antigos removidos automaticamente da lixeira`);
+    }
+
+    return removedCount;
+  }
+
   // Mover item para lixeira
-  static moveToTrash(
+  static async moveToTrash(
     item: any,
     type: 'page' | 'template' | 'file' | 'folder',
     currentUser?: string
-  ): DeletedItem {
+  ): Promise<DeletedItem | null> {
+    // Auto-limpeza antes de adicionar
+    this.autoCleanup();
+
     const deletedItem: DeletedItem = {
       id: Date.now().toString(),
       type,
@@ -51,10 +77,26 @@ export class TrashService {
     const currentTrash = this.getTrashItems();
     currentTrash.unshift(deletedItem);
 
-    // Limitar quantidade de itens
+    // Limitar quantidade de itens (mais agressivo)
     const limitedTrash = currentTrash.slice(0, this.MAX_ITEMS);
     
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(limitedTrash));
+    // Usar StorageQuotaService para salvar com verificação
+    const success = await StorageQuotaService.setItem(this.STORAGE_KEY, limitedTrash);
+    
+    if (!success) {
+      toast.error('Não foi possível mover para a lixeira. Armazenamento cheio.');
+      
+      // Tentar com limpeza mais agressiva
+      const veryLimitedTrash = currentTrash.slice(0, 20); // Apenas 20 itens
+      const retrySuccess = await StorageQuotaService.setItem(this.STORAGE_KEY, veryLimitedTrash);
+      
+      if (!retrySuccess) {
+        toast.error('Por favor, esvazie a lixeira manualmente');
+        return null;
+      }
+      
+      toast.warning('Lixeira reduzida automaticamente para liberar espaço');
+    }
     
     toast.success(`"${deletedItem.name}" movido para a lixeira`);
     
@@ -62,7 +104,7 @@ export class TrashService {
   }
 
   // Restaurar item da lixeira
-  static restoreFromTrash(deletedItemId: string): DeletedItem | null {
+  static async restoreFromTrash(deletedItemId: string): Promise<DeletedItem | null> {
     const trash = this.getTrashItems();
     const itemIndex = trash.findIndex(item => item.id === deletedItemId);
     
@@ -80,7 +122,7 @@ export class TrashService {
 
     // Remover da lixeira
     trash.splice(itemIndex, 1);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(trash));
+    await StorageQuotaService.setItem(this.STORAGE_KEY, trash);
     
     toast.success(`"${item.name}" restaurado com sucesso`);
     
@@ -88,7 +130,7 @@ export class TrashService {
   }
 
   // Deletar permanentemente da lixeira
-  static deletePermanently(deletedItemId: string): boolean {
+  static async deletePermanently(deletedItemId: string): Promise<boolean> {
     const trash = this.getTrashItems();
     const itemIndex = trash.findIndex(item => item.id === deletedItemId);
     
@@ -104,7 +146,7 @@ export class TrashService {
     }
 
     trash.splice(itemIndex, 1);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(trash));
+    await StorageQuotaService.setItem(this.STORAGE_KEY, trash);
     
     toast.success(`"${item.name}" deletado permanentemente`);
     
@@ -112,7 +154,7 @@ export class TrashService {
   }
 
   // Esvaziar lixeira
-  static emptyTrash(): boolean {
+  static async emptyTrash(): Promise<boolean> {
     const trash = this.getTrashItems();
     
     if (trash.length === 0) {
@@ -124,11 +166,56 @@ export class TrashService {
       return false;
     }
 
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify([]));
+    await StorageQuotaService.setItem(this.STORAGE_KEY, []);
     
-    toast.success(`Lixeira esvaziada! ${trash.length} itens deletados permanentemente`);
+    const stats = StorageQuotaService.getStorageStats();
+    toast.success(
+      `Lixeira esvaziada! ${trash.length} itens deletados. ` +
+      `Armazenamento: ${stats.percentage.toFixed(1)}% usado`
+    );
     
     return true;
+  }
+
+  // Esvaziar lixeira automaticamente (sem confirmação) - para uso interno
+  static async emptyTrashAuto(): Promise<number> {
+    const trash = this.getTrashItems();
+    const count = trash.length;
+    
+    if (count > 0) {
+      await StorageQuotaService.setItem(this.STORAGE_KEY, []);
+      console.log(`Lixeira esvaziada automaticamente: ${count} itens removidos`);
+    }
+    
+    return count;
+  }
+
+  // Obter tamanho da lixeira em bytes
+  static getTrashSize(): number {
+    const trash = this.getTrashItems();
+    const jsonString = JSON.stringify(trash);
+    return new Blob([jsonString]).size;
+  }
+
+  // Limpar itens mais antigos que X dias
+  static async cleanOldItems(maxAgeDays: number = 30): Promise<number> {
+    const trash = this.getTrashItems();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays);
+
+    const filteredTrash = trash.filter(item => {
+      const deletedDate = new Date(item.deletedAt);
+      return deletedDate >= cutoffDate;
+    });
+
+    const removedCount = trash.length - filteredTrash.length;
+    
+    if (removedCount > 0) {
+      await StorageQuotaService.setItem(this.STORAGE_KEY, filteredTrash);
+      toast.success(`${removedCount} itens antigos removidos da lixeira`);
+    }
+
+    return removedCount;
   }
 
   // Obter itens por tipo

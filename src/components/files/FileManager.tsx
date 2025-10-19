@@ -50,6 +50,7 @@ import { toast } from 'sonner@2.0.3';
 import { LinkManagementService } from '../../services/LinkManagementService';
 import { UploadConfirmDialog, UploadConfirmMultipleDialog } from '../common/UploadConfirmDialog';
 import { downloadFile, downloadFolder, prepareFolderStructure } from '../../utils/download';
+import { StorageQuotaService } from '../../services/StorageQuotaService';
 
 interface FileItem {
   id: string;
@@ -111,7 +112,9 @@ export function FileManager() {
 
   useEffect(() => {
     loadFiles();
+  }, []);
 
+  useEffect(() => {
     // Listener para recarregar quando arquivos mudarem (detecta uploads do MediaLibrarySelector)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'files') {
@@ -124,30 +127,78 @@ export function FileManager() {
       loadFiles();
     };
 
+    // Listener para abrir arquivo da pesquisa global
+    const handleOpenFile = (e: CustomEvent) => {
+      const { fileId, filePath } = e.detail;
+      
+      // Encontrar o arquivo no localStorage diretamente
+      const storedFiles = localStorage.getItem('files');
+      const allFiles: FileItem[] = storedFiles ? JSON.parse(storedFiles) : [];
+      const fileToOpen = allFiles.find(f => f.id === fileId || f.path === filePath);
+      
+      if (fileToOpen) {
+        // Navegar para a pasta do arquivo
+        if (fileToOpen.parent) {
+          setCurrentPath(fileToOpen.parent);
+        }
+        
+        // Abrir preview do arquivo
+        if (fileToOpen.mimeType?.startsWith('image/')) {
+          setSelectedImage(fileToOpen);
+          setShowImageViewer(true);
+        } else if (fileToOpen.mimeType === 'text/plain' || fileToOpen.mimeType === 'text/html') {
+          setEditingTextFile(fileToOpen);
+          setShowTextEditor(true);
+        } else {
+          // Para outros tipos, mostrar propriedades
+          setPropertiesFile(fileToOpen);
+          setShowProperties(true);
+        }
+        
+        toast.success(`Arquivo aberto: ${fileToOpen.name}`);
+      }
+    };
+
+    // Listener para selecionar item da pesquisa global
+    const handleSelectItem = (e: CustomEvent) => {
+      const { itemId, viewId } = e.detail;
+      if (viewId === 'files') {
+        handleOpenFile(new CustomEvent('openFile', { detail: { fileId: itemId } }) as any);
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('filesUpdated', handleFilesUpdate);
+    window.addEventListener('openFile', handleOpenFile as EventListener);
+    window.addEventListener('selectItem', handleSelectItem as EventListener);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('filesUpdated', handleFilesUpdate);
+      window.removeEventListener('openFile', handleOpenFile as EventListener);
+      window.removeEventListener('selectItem', handleSelectItem as EventListener);
     };
   }, []);
 
   const loadFiles = () => {
     const stored = localStorage.getItem('files');
     if (stored) {
-      const existingFiles = JSON.parse(stored);
-      // Ensure default protected folders exist
-      const protectedFolders = [
-        { name: 'Arquivos', path: '/Arquivos' },
-        { name: 'imagens', path: '/Arquivos/imagens' },
-        { name: 'paginas', path: '/Arquivos/paginas' },
-        { name: 'estaticos', path: '/Arquivos/estaticos' }
-      ];
+      try {
+        const parsed = JSON.parse(stored);
+        // Validação robusta: garantir que é um array
+        const existingFiles = Array.isArray(parsed) ? parsed : [];
+        
+        // Ensure default protected folders exist
+        const protectedFolders = [
+          { name: 'Arquivos', path: '/Arquivos' },
+          { name: 'imagens', path: '/Arquivos/imagens' },
+          { name: 'paginas', path: '/Arquivos/paginas' },
+          { name: 'estaticos', path: '/Arquivos/estaticos' }
+        ];
 
-      let updated = false;
-      protectedFolders.forEach(folder => {
-        if (!existingFiles.some((f: FileItem) => f.path === folder.path)) {
+        let updated = false;
+        protectedFolders.forEach(folder => {
+          if (!existingFiles.some((f: FileItem) => f.path === folder.path)) {
           existingFiles.push({
             id: `protected-${Date.now()}-${Math.random()}`,
             name: folder.name,
@@ -161,10 +212,96 @@ export function FileManager() {
         }
       });
 
+      // Ensure "Inicio.html" homepage file exists
+      const homepagePath = '/Arquivos/Inicio.html';
+      if (!existingFiles.some((f: FileItem) => f.path === homepagePath)) {
+        const defaultHomepageContent = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Início - Portal CMS</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3rem 0; text-align: center; }
+        h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+        .subtitle { font-size: 1.2rem; opacity: 0.9; }
+        .hero { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 2rem; margin: 2rem 0; }
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; margin: 2rem 0; }
+        .feature { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .feature h3 { color: #667eea; margin-bottom: 0.5rem; }
+        footer { text-align: center; padding: 2rem; color: #666; margin-top: 3rem; border-top: 1px solid #e0e0e0; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Bem-vindo ao Portal CMS</h1>
+            <p class="subtitle">Sistema completo de gerenciamento de conteúdo</p>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="hero">
+            <h2>Página Inicial do Site</h2>
+            <p>Esta é a página inicial vinculada ao site público. Edite este arquivo para personalizar o conteúdo da homepage.</p>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>📝 Editor Inteligente</h3>
+                <p>Crie e edite conteúdo com nosso editor visual avançado.</p>
+            </div>
+            <div class="feature">
+                <h3>🎨 Page Builder</h3>
+                <p>Construa páginas complexas com arrastar e soltar.</p>
+            </div>
+            <div class="feature">
+                <h3>📁 Gerenciamento de Arquivos</h3>
+                <p>Organize todos os seus arquivos e imagens.</p>
+            </div>
+            <div class="feature">
+                <h3>🔒 Segurança</h3>
+                <p>Sistema completo de autenticação e permissões.</p>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>&copy; 2025 Portal CMS. Todos os direitos reservados.</p>
+    </footer>
+</body>
+</html>`;
+        
+        existingFiles.push({
+          id: `homepage-${Date.now()}`,
+          name: 'Inicio.html',
+          type: 'file',
+          path: homepagePath,
+          parent: '/Arquivos',
+          size: defaultHomepageContent.length,
+          mimeType: 'text/html',
+          url: `data:text/html;base64,${btoa(unescape(encodeURIComponent(defaultHomepageContent)))}`,
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+          protected: false
+        });
+        updated = true;
+      }
+
       if (updated) {
-        localStorage.setItem('files', JSON.stringify(existingFiles));
+        StorageQuotaService.setItem('files', JSON.stringify(existingFiles));
       }
       setFiles(existingFiles);
+      } catch (error) {
+        console.error('Erro ao carregar arquivos do localStorage:', error);
+        // Em caso de erro, limpar e criar estrutura padrão
+        localStorage.removeItem('files');
+        loadFiles(); // Recarregar para criar estrutura padrão
+        return;
+      }
     } else {
       // Create default folder structure
       const defaultFiles: FileItem[] = [
@@ -210,11 +347,15 @@ export function FileManager() {
     }
   };
 
-  const saveFiles = (updatedFiles: FileItem[]) => {
-    localStorage.setItem('files', JSON.stringify(updatedFiles));
-    setFiles(updatedFiles);
-    // Notificar outros componentes sobre a mudança
-    window.dispatchEvent(new Event('filesUpdated'));
+  const saveFiles = async (updatedFiles: FileItem[]) => {
+    const success = await StorageQuotaService.setItem('files', updatedFiles);
+    if (success) {
+      setFiles(updatedFiles);
+      // Notificar outros componentes sobre a mudança
+      window.dispatchEvent(new Event('filesUpdated'));
+    } else {
+      toast.error('Não foi possível salvar. Armazenamento cheio.');
+    }
   };
 
   const validateFile = (file: globalThis.File): { valid: boolean; error?: string } => {

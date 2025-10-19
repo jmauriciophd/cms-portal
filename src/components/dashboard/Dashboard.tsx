@@ -6,21 +6,18 @@ import {
   Image, 
   Menu as MenuIcon, 
   Settings, 
-  Users, 
   LogOut,
   FileCode,
   Layout,
   Palette,
   List,
   Code,
-  Link as LinkIcon,
-  History,
   Trash2,
   Database,
-  RefreshCw,
   Tag as TagIcon,
-  Search,
-  Layers
+  Layers,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { PageManager } from '../pages/PageManager';
 import { FileManager } from '../files/FileManager';
@@ -30,48 +27,83 @@ import { UserManager } from '../users/UserManager';
 import { CustomListManager } from '../content/CustomListManager';
 import { SnippetManager } from '../content/SnippetManager';
 import { DashboardHome } from './DashboardHome';
-import { LinkManager } from '../links/LinkManager';
 import { TemplateManager } from '../templates/TemplateManager';
-import { SecurityMonitor } from '../security/SecurityMonitor';
 import { TrashViewer } from '../files/TrashViewer';
 import { EditorDemo } from '../editor/EditorDemo';
 import { CustomFieldsManager } from '../content/CustomFieldsManager';
-import { ContentSyncManager } from '../content/ContentSyncManager';
 import { TaxonomyManager } from '../taxonomy/TaxonomyManager';
-import { SearchSystem } from '../taxonomy/SearchSystem';
 import { HierarchicalBuilderDemo } from '../pages/HierarchicalBuilderDemo';
+import { GlobalSearch } from './GlobalSearch';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'links' | 'templates' | 'users' | 'security' | 'settings' | 'trash' | 'editorDemo' | 'customFields' | 'contentSync' | 'taxonomy' | 'search' | 'hierarchicalBuilder';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'editorDemo' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(['hierarchicalBuilder']));
+  const [selectedItemId, setSelectedItemId] = useState<string | undefined>(undefined);
 
-  const menuItems = [
+  interface MenuItem {
+    id: string;
+    icon: any;
+    label: string;
+    roles: string[];
+    children?: MenuItem[];
+  }
+
+  const menuItems: MenuItem[] = [
     { id: 'home', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'editor'] },
     { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
     { id: 'editorDemo', icon: FileText, label: 'Editor Inteligente', roles: ['admin', 'editor'] },
-    { id: 'hierarchicalBuilder', icon: Layers, label: 'Page Builder Hierárquico', roles: ['admin', 'editor'] },
+    { 
+      id: 'hierarchicalBuilder', 
+      icon: Layers, 
+      label: 'Page Builder', 
+      roles: ['admin', 'editor'],
+      children: [
+        { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] }
+      ]
+    },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },
     { id: 'trash', icon: Trash2, label: 'Lixeira', roles: ['admin', 'editor'] },
     { id: 'menu', icon: MenuIcon, label: 'Menu', roles: ['admin'] },
-    { id: 'search', icon: Search, label: 'Pesquisa', roles: ['admin', 'editor'] },
     { id: 'taxonomy', icon: TagIcon, label: 'Tags e Categorias', roles: ['admin', 'editor'] },
     { id: 'lists', icon: List, label: 'Listas', roles: ['admin', 'editor'] },
     { id: 'customFields', icon: Database, label: 'Campos Personalizados', roles: ['admin', 'editor'] },
-    { id: 'contentSync', icon: RefreshCw, label: 'Sincronização', roles: ['admin', 'editor'] },
     { id: 'snippets', icon: Code, label: 'Snippets', roles: ['admin', 'editor'] },
-    { id: 'links', icon: LinkIcon, label: 'Links', roles: ['admin', 'editor'] },
-    { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] },
-    { id: 'users', icon: Users, label: 'Usuários', roles: ['admin'] },
-    { id: 'security', icon: History, label: 'Segurança', roles: ['admin'] },
     { id: 'settings', icon: Settings, label: 'Configurações', roles: ['admin'] },
   ];
+
+  const toggleExpanded = (itemId: string) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedItems(newExpanded);
+  };
+
+  // Função auxiliar para navegar e selecionar item
+  const handleNavigateToItem = (viewId: string, itemId?: string) => {
+    setCurrentView(viewId as View);
+    setSelectedItemId(itemId);
+    
+    // Enviar evento customizado para os componentes filhos
+    if (itemId) {
+      // Timeout para garantir que o componente foi montado
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('selectItem', { 
+          detail: { itemId, viewId } 
+        }));
+      }, 100);
+    }
+  };
 
   const renderView = () => {
     switch (currentView) {
@@ -87,8 +119,6 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <TrashViewer onClose={() => setCurrentView('home')} />;
       case 'menu':
         return <MenuManager />;
-      case 'search':
-        return <SearchSystem />;
       case 'taxonomy':
         return <TaxonomyManager currentUser={currentUser} />;
       case 'hierarchicalBuilder':
@@ -97,20 +127,12 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <CustomListManager />;
       case 'customFields':
         return <CustomFieldsManager />;
-      case 'contentSync':
-        return <ContentSyncManager />;
       case 'snippets':
         return <SnippetManager currentUser={currentUser} />;
-      case 'links':
-        return <LinkManager currentUser={currentUser} />;
       case 'templates':
         return <TemplateManager />;
-      case 'users':
-        return <UserManager />;
-      case 'security':
-        return <SecurityMonitor />;
       case 'settings':
-        return <SystemSettings />;
+        return <SystemSettings currentUser={currentUser} />;
       default:
         return <DashboardHome currentUser={currentUser} onNavigate={setCurrentView} />;
     }
@@ -129,12 +151,35 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               {!sidebarCollapsed && (
-                <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    try {
+                      // Abrir página inicial do site em nova aba
+                      const filesData = localStorage.getItem('files');
+                      const files = filesData ? JSON.parse(filesData) : [];
+                      
+                      if (Array.isArray(files)) {
+                        const homepage = files.find((f: any) => f.path === '/Arquivos/Inicio.html');
+                        if (homepage && homepage.url) {
+                          window.open(homepage.url, '_blank');
+                          return;
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error opening homepage:', error);
+                    }
+                    
+                    // Fallback: abrir site público
+                    window.open('/public', '_blank');
+                  }}
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  title="Abrir página inicial do site"
+                >
                   <div className="p-2 bg-indigo-600 rounded-lg">
                     <FileCode className="w-5 h-5 text-white" />
                   </div>
                   <span className="font-semibold text-gray-900">Portal CMS</span>
-                </div>
+                </button>
               )}
               <Button
                 variant="ghost"
@@ -153,19 +198,64 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
               .filter(item => item.roles.includes(currentUser.role))
               .map((item) => {
                 const Icon = item.icon;
+                const hasChildren = item.children && item.children.length > 0;
+                const isExpanded = expandedItems.has(item.id);
+                
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => setCurrentView(item.id as View)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                      currentView === item.id
-                        ? 'bg-indigo-50 text-indigo-600'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    {!sidebarCollapsed && <span>{item.label}</span>}
-                  </button>
+                  <div key={item.id}>
+                    <button
+                      onClick={() => {
+                        if (hasChildren && !sidebarCollapsed) {
+                          toggleExpanded(item.id);
+                        }
+                        setCurrentView(item.id as View);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        currentView === item.id
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      {!sidebarCollapsed && (
+                        <>
+                          <span className="flex-1 text-left">{item.label}</span>
+                          {hasChildren && (
+                            isExpanded ? (
+                              <ChevronDown className="w-4 h-4 flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                            )
+                          )}
+                        </>
+                      )}
+                    </button>
+                    
+                    {/* Submenu */}
+                    {hasChildren && isExpanded && !sidebarCollapsed && (
+                      <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-2">
+                        {item.children
+                          ?.filter(child => child.roles.includes(currentUser.role))
+                          .map((child) => {
+                            const ChildIcon = child.icon;
+                            return (
+                              <button
+                                key={child.id}
+                                onClick={() => setCurrentView(child.id as View)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                                  currentView === child.id
+                                    ? 'bg-indigo-50 text-indigo-600'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <ChildIcon className="w-4 h-4 flex-shrink-0" />
+                                <span>{child.label}</span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
           </nav>
@@ -199,8 +289,18 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
-        {renderView()}
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        {/* Barra de Pesquisa Global */}
+        <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
+          <div className="px-6 py-4">
+            <GlobalSearch onNavigate={handleNavigateToItem} />
+          </div>
+        </div>
+
+        {/* Conteúdo Principal */}
+        <div className="flex-1">
+          {renderView()}
+        </div>
       </main>
     </div>
   );

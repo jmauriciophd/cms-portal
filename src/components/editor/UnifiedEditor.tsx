@@ -339,7 +339,16 @@ export function UnifiedEditor({
     }, [currentPath]);
 
     const loadFiles = () => {
-      const allFiles = JSON.parse(localStorage.getItem('files') || '[]');
+      let allFiles: any[] = [];
+      try {
+        const stored = localStorage.getItem('files') || '[]';
+        const parsed = JSON.parse(stored);
+        allFiles = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error('Erro ao carregar arquivos:', e);
+        allFiles = [];
+      }
+      
       const filesInPath = allFiles.filter((f: any) => {
         if (f.type === 'folder') return f.path === currentPath;
         return f.path === currentPath && ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.mimeType);

@@ -6,6 +6,8 @@ import { Dashboard } from './components/dashboard/Dashboard';
 import { PublicSite } from './components/public/PublicSite';
 import { PermissionsProvider } from './components/auth/PermissionsContext';
 import { Toaster } from './components/ui/sonner';
+import { useStorageMaintenance } from './components/hooks/useStorageMaintenance';
+import { AdvancedSchemaDemo } from './components/demo/AdvancedSchemaDemo';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = localStorage.getItem('currentUser');
@@ -83,6 +85,9 @@ function AdminDashboard() {
 }
 
 export default function App() {
+  // Inicializar manutenção automática de armazenamento
+  useStorageMaintenance();
+  
   return (
     <DndWrapper>
       <PermissionsProvider>
@@ -111,6 +116,16 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Rota de demonstração do sistema de schemas */}
+            <Route 
+              path="/admin/schemas-demo" 
+              element={
+                <ProtectedRoute>
+                  <AdvancedSchemaDemo />
                 </ProtectedRoute>
               } 
             />

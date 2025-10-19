@@ -15,7 +15,7 @@ export function PageBuilder() {
           Este componente foi substituído pelo HierarchicalPageBuilder.
         </p>
         <p className="text-gray-600 mt-2">
-          Por favor, use o menu "Editor Hierárquico" para criar páginas.
+          Por favor, use o menu "Page Builder" para criar páginas.
         </p>
       </div>
     </div>

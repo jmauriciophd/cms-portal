@@ -66,7 +66,31 @@ export function ArticleManager({ currentUser }: ArticleManagerProps) {
   useEffect(() => {
     loadArticles();
     loadFolders();
-  }, []);
+
+    // Listener para abrir artigo da pesquisa global
+    const handleSelectItem = (e: CustomEvent) => {
+      const { itemId, viewId } = e.detail;
+      if (viewId === 'editorDemo') { // ArticleManager está no editorDemo
+        const articleToEdit = articles.find(a => a.id === itemId);
+        if (articleToEdit) {
+          // Navegar para a pasta do artigo se necessário
+          if (articleToEdit.folder) {
+            setCurrentPath(articleToEdit.folder);
+          }
+          // Abrir o editor
+          setEditingArticle(articleToEdit);
+          setShowEditor(true);
+          toast.success(`Editando artigo: ${articleToEdit.title}`);
+        }
+      }
+    };
+
+    window.addEventListener('selectItem', handleSelectItem as EventListener);
+
+    return () => {
+      window.removeEventListener('selectItem', handleSelectItem as EventListener);
+    };
+  }, [articles]);
 
   const loadArticles = () => {
     const stored = localStorage.getItem('articles');

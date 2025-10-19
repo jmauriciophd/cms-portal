@@ -573,3 +573,34 @@ export class AuditService {
     return diff;
   }
 }
+
+// Instância simplificada para compatibilidade com código que espera uma instância
+export const auditService = {
+  log: (action: string, resourceId: string | null, details: any) => {
+    // Obtém informações do usuário atual do localStorage
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{"id":"system","name":"System","role":"system"}');
+    
+    // Determina o resourceType baseado na action
+    let resourceType: AuditLog['resourceType'] = 'settings';
+    if (action.includes('page')) resourceType = 'page';
+    else if (action.includes('article')) resourceType = 'article';
+    else if (action.includes('file')) resourceType = 'file';
+    else if (action.includes('user')) resourceType = 'user';
+    else if (action.includes('permission')) resourceType = 'permission';
+    else if (action.includes('link')) resourceType = 'link';
+    else if (action.includes('menu')) resourceType = 'menu';
+    else if (action.includes('template')) resourceType = 'template';
+    
+    return AuditService.log({
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: action as AuditAction,
+      resource: action,
+      resourceId: resourceId || undefined,
+      resourceType,
+      details,
+      status: 'success'
+    });
+  }
+};

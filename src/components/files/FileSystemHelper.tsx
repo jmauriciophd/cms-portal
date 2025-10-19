@@ -57,8 +57,16 @@ export function saveHTMLFile(params: {
   const fileName = `${slug}.html`;
   const filePath = `${basePath}/${fileName}`;
 
-  // Carrega arquivos existentes
-  const files = JSON.parse(localStorage.getItem('files') || '[]');
+  // Carrega arquivos existentes com validação
+  let files: FileItem[] = [];
+  try {
+    const stored = localStorage.getItem('files') || '[]';
+    const parsed = JSON.parse(stored);
+    files = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Erro ao carregar arquivos:', e);
+    files = [];
+  }
 
   // Verifica se o arquivo já existe
   const existingFileIndex = files.findIndex((f: FileItem) => f.path === filePath);
@@ -92,7 +100,15 @@ export function saveHTMLFile(params: {
  * Garante que uma pasta existe no sistema
  */
 function ensureFolderExists(path: string): void {
-  const files = JSON.parse(localStorage.getItem('files') || '[]');
+  let files: FileItem[] = [];
+  try {
+    const stored = localStorage.getItem('files') || '[]';
+    const parsed = JSON.parse(stored);
+    files = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Erro ao carregar arquivos:', e);
+    files = [];
+  }
   
   // Divide o caminho em partes
   const parts = path.split('/').filter(p => p);
@@ -232,7 +248,16 @@ export function deleteHTMLFile(params: {
 
   const filePath = `${basePath}/${slug}.html`;
 
-  const files = JSON.parse(localStorage.getItem('files') || '[]');
+  let files: FileItem[] = [];
+  try {
+    const stored = localStorage.getItem('files') || '[]';
+    const parsed = JSON.parse(stored);
+    files = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Erro ao carregar arquivos:', e);
+    files = [];
+  }
+  
   const updatedFiles = files.filter((f: FileItem) => f.path !== filePath);
   
   localStorage.setItem('files', JSON.stringify(updatedFiles));
@@ -258,7 +283,16 @@ export function renameHTMLFile(params: {
   const newPath = `${basePath}/${newSlug}.html`;
   const newName = `${newSlug}.html`;
 
-  const files = JSON.parse(localStorage.getItem('files') || '[]');
+  let files: FileItem[] = [];
+  try {
+    const stored = localStorage.getItem('files') || '[]';
+    const parsed = JSON.parse(stored);
+    files = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Erro ao carregar arquivos:', e);
+    files = [];
+  }
+  
   const fileIndex = files.findIndex((f: FileItem) => f.path === oldPath);
 
   if (fileIndex >= 0) {

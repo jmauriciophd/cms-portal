@@ -6,11 +6,15 @@ import { Textarea } from '../ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Switch } from '../ui/switch';
-import { Save, Code, Palette, Database, FileCode, Shield, Sparkles } from 'lucide-react';
+import { Save, Code, Palette, Database, FileCode, Shield, Sparkles, Users, History, RefreshCw, Link as LinkIcon } from 'lucide-react';
 import { PermissionsManager } from './PermissionsManager';
 import { AIProviderConfig } from '../ai/AIProviderConfig';
 import { usePermissions, withPermission } from '../auth/PermissionsContext';
 import { toast } from 'sonner@2.0.3';
+import { SecurityMonitor } from '../security/SecurityMonitor';
+import { UserManager } from '../users/UserManager';
+import { ContentSyncManager } from '../content/ContentSyncManager';
+import { LinkManager } from '../links/LinkManager';
 
 interface Settings {
   siteName: string;
@@ -31,7 +35,11 @@ interface Settings {
   }>;
 }
 
-export function SystemSettings() {
+interface SystemSettingsProps {
+  currentUser?: any;
+}
+
+export function SystemSettings({ currentUser }: SystemSettingsProps = {}) {
   const { hasPermission } = usePermissions();
   
   const [settings, setSettings] = useState<Settings>({
@@ -158,18 +166,18 @@ export function SystemSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList>
+        <TabsList className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-1 h-auto">
           <TabsTrigger value="general">
             <Database className="w-4 h-4 mr-2" />
             Geral
           </TabsTrigger>
           <TabsTrigger value="customization">
             <Code className="w-4 h-4 mr-2" />
-            Customização
+            CSS/JS
           </TabsTrigger>
           <TabsTrigger value="fields">
             <FileCode className="w-4 h-4 mr-2" />
-            Campos Personalizados
+            Campos
           </TabsTrigger>
           <TabsTrigger value="templates">
             <Palette className="w-4 h-4 mr-2" />
@@ -177,7 +185,7 @@ export function SystemSettings() {
           </TabsTrigger>
           <TabsTrigger value="ai">
             <Sparkles className="w-4 h-4 mr-2" />
-            Inteligência Artificial
+            IA
           </TabsTrigger>
           {hasPermission('settings.permissions') && (
             <TabsTrigger value="permissions">
@@ -185,6 +193,26 @@ export function SystemSettings() {
               Permissões
             </TabsTrigger>
           )}
+          {hasPermission('users.view') && (
+            <TabsTrigger value="users">
+              <Users className="w-4 h-4 mr-2" />
+              Usuários
+            </TabsTrigger>
+          )}
+          {hasPermission('security.view') && (
+            <TabsTrigger value="security">
+              <History className="w-4 h-4 mr-2" />
+              Segurança
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="sync">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Sincronização
+          </TabsTrigger>
+          <TabsTrigger value="links">
+            <LinkIcon className="w-4 h-4 mr-2" />
+            Links
+          </TabsTrigger>
         </TabsList>
 
         {/* General Settings */}
@@ -449,6 +477,30 @@ export function SystemSettings() {
             <PermissionsManager />
           </TabsContent>
         )}
+
+        {/* Users Management - Admin Only */}
+        {hasPermission('users.view') && (
+          <TabsContent value="users">
+            <UserManager />
+          </TabsContent>
+        )}
+
+        {/* Security Monitor - Admin Only */}
+        {hasPermission('security.view') && (
+          <TabsContent value="security">
+            <SecurityMonitor />
+          </TabsContent>
+        )}
+
+        {/* Content Sync */}
+        <TabsContent value="sync">
+          <ContentSyncManager />
+        </TabsContent>
+
+        {/* Link Manager */}
+        <TabsContent value="links">
+          <LinkManager currentUser={currentUser} />
+        </TabsContent>
       </Tabs>
     </div>
   );

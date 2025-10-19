@@ -66,10 +66,45 @@ export function MenuManager() {
     loadPages();
   }, []);
 
+  useEffect(() => {
+    // Listener para abrir menu da pesquisa global
+    const handleSelectItem = (e: CustomEvent) => {
+      const { itemId, viewId } = e.detail;
+      if (viewId === 'menus') {
+        // Buscar menu diretamente do localStorage
+        const storedMenus = localStorage.getItem('menus');
+        const allMenus: MenuConfig[] = storedMenus ? JSON.parse(storedMenus) : [];
+        const menuToEdit = allMenus.find(m => m.id === itemId);
+        
+        if (menuToEdit) {
+          setSelectedMenuId(menuToEdit.id);
+          toast.success(`Selecionado menu: ${menuToEdit.name}`);
+        }
+      }
+    };
+
+    window.addEventListener('selectItem', handleSelectItem as EventListener);
+
+    return () => {
+      window.removeEventListener('selectItem', handleSelectItem as EventListener);
+    };
+  }, []);
+
+  const ensureIds = (items: MenuItem[]): MenuItem[] => {
+    return items.map((item, index) => ({
+      ...item,
+      id: item.id || `item-${Date.now()}-${index}`,
+      filhos: item.filhos ? ensureIds(item.filhos) : null
+    }));
+  };
+
   const loadMenus = () => {
     const stored = localStorage.getItem('menus');
     if (stored) {
-      const loadedMenus = JSON.parse(stored);
+      const loadedMenus = JSON.parse(stored).map((menu: MenuConfig) => ({
+        ...menu,
+        items: ensureIds(menu.items)
+      }));
       setMenus(loadedMenus);
       if (loadedMenus.length > 0 && !selectedMenuId) {
         setSelectedMenuId(loadedMenus[0].id);
@@ -81,6 +116,13 @@ export function MenuManager() {
         name: 'Menu Principal',
         description: 'Menu de navegação principal do site',
         items: [
+          {
+            title: 'Início',
+            targetUrl: '/Arquivos/Inicio.html',
+            ignorarFilhosNoMenu: false,
+            filhos: null,
+            href: '/'
+          },
           {
             title: 'Institucional',
             targetUrl: '/sites/portal/Paginas/inc/MenuList.aspx',
@@ -485,7 +527,7 @@ export function MenuManager() {
         }
       }
 
-      updateCurrentMenu(parsed);
+      updateCurrentMenu(ensureIds(parsed));
       setShowImportDialog(false);
       setImportJson('');
       toast.success('Menu importado com sucesso!');
@@ -665,7 +707,9 @@ export function MenuManager() {
         {hasFilhos && item.expanded && (
           <div className="space-y-2">
             {item.filhos!.map((filho, filhoIndex) => 
-              renderMenuItem(filho, [...path, filhoIndex], level + 1)
+              <div key={filho.id || `${path.join('-')}-${filhoIndex}`}>
+                {renderMenuItem(filho, [...path, filhoIndex], level + 1)}
+              </div>
             )}
           </div>
         )}

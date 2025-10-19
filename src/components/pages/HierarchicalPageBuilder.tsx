@@ -1,5 +1,5 @@
 /**
- * Page Builder Hierárquico
+ * Page Builder
  * Integração completa do sistema de hierarquia com drag & drop
  */
 
@@ -16,16 +16,22 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { 
   Save, Undo, Redo, Eye, Code, Download, Upload, 
-  Trash2, Play, Grid3x3, Layers, FileJson, Settings, LayoutTemplate
+  Trash2, Play, Grid3x3, Layers, FileJson, Settings, LayoutTemplate, Palette
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
 import { HierarchicalRenderNode, HierarchicalNode } from '../editor/HierarchicalRenderNode';
 import { HierarchicalComponentLibrary } from '../editor/HierarchicalComponentLibrary';
+import { ImprovedComponentLibrary } from '../editor/ImprovedComponentLibrary';
 import { EmptyDropZone } from '../editor/DroppableContainer';
 import { hierarchyService } from '../../services/HierarchyService';
 import { SaveAsTemplateDialog } from './SaveAsTemplateDialog';
 import { TemplateLibrarySelector } from './TemplateLibrarySelector';
+import { DSIntegrationPanel } from './DSIntegrationPanel';
+import { pbDSIntegration } from '../../services/PageBuilderDSIntegration';
+import { copyToClipboard } from '../../utils/clipboard';
+import { AdvancedPropertyEditor } from '../editor/AdvancedPropertyEditor';
+import { BaseComponentProperties } from '../../utils/advancedComponentSchemas';
 
 interface HierarchicalPageBuilderProps {
   pageId?: string;
@@ -54,6 +60,7 @@ export function HierarchicalPageBuilder({
   const [importValue, setImportValue] = useState('');
   const [exportedCode, setExportedCode] = useState('');
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [showDSPanel, setShowDSPanel] = useState(false);
   
   // Auto-save
   useEffect(() => {
@@ -133,7 +140,7 @@ export function HierarchicalPageBuilder({
   
   // Criar novo componente
   const createComponent = useCallback((type: string, definition?: any): HierarchicalNode => {
-    const newNode: HierarchicalNode = {
+    let newNode: HierarchicalNode = {
       id: uuidv4(),
       type,
       props: definition?.defaultProps || {},
@@ -158,6 +165,12 @@ export function HierarchicalPageBuilder({
           newNode.slots[slotName] = [];
         }
       }
+    }
+    
+    // Aplicar tokens do Design System se configurado
+    const config = pbDSIntegration.getConfig();
+    if (config.autoApplyTokens) {
+      newNode = pbDSIntegration.applyDSTokensToNode(newNode);
     }
     
     return newNode;
@@ -638,6 +651,18 @@ export function HierarchicalPageBuilder({
             Templates
           </Button>
           
+          <Separator orientation="vertical" className="h-6" />
+          
+          <Button
+            size="sm"
+            variant={showDSPanel ? "default" : "outline"}
+            onClick={() => setShowDSPanel(!showDSPanel)}
+            title="Design System"
+          >
+            <Palette className="w-4 h-4 mr-2" />
+            Design System
+          </Button>
+          
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
               {nodes.length} componente{nodes.length !== 1 ? 's' : ''}
@@ -655,9 +680,9 @@ export function HierarchicalPageBuilder({
         
         {/* Main content */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Component Library */}
-          <div className="w-80 border-r">
-            <HierarchicalComponentLibrary 
+          {/* Component Library - Nova Interface Melhorada */}
+          <div className="w-96 border-r">
+            <ImprovedComponentLibrary 
               onComponentClick={(definition) => {
                 // Ao clicar em um componente, adiciona ao final da árvore
                 const newNode = createComponent(definition.type, definition);
@@ -671,6 +696,13 @@ export function HierarchicalPageBuilder({
                 }
                 setSelectedNodeId(newNode.id);
                 toast.success(`${definition.label} inserido!`);
+              }}
+              onTemplateSelect={(nodes, templateId) => {
+                // Ao selecionar um template, substitui todo o conteúdo
+                setNodes(nodes);
+                addToHistory(nodes);
+                setSelectedNodeId(null);
+                toast.success('Template aplicado!');
               }}
             />
           </div>
@@ -713,74 +745,105 @@ export function HierarchicalPageBuilder({
             </div>
           </div>
           
-          {/* Properties Panel */}
-          <div className="w-80 border-l bg-white dark:bg-gray-900">
-            <div className="p-4">
+          {/* Properties Panel / DS Panel */}
+          {showDSPanel ? (
+            <div className="w-96 border-l bg-white dark:bg-gray-900">
+              <DSIntegrationPanel
+                nodes={nodes}
+                selectedNode={selectedNode}
+                onNodesUpdate={(updatedNodes) => {
+                  setNodes(updatedNodes);
+                  addToHistory(updatedNodes);
+                }}
+                onNodeUpdate={(updatedNode) => {
+                  handleUpdateNode(updatedNode.id, updatedNode);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="w-96 border-l bg-white dark:bg-gray-900 overflow-hidden">
               {selectedNode ? (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-medium mb-2">Propriedades</h3>
-                    <div className="text-sm text-muted-foreground">
-                      Tipo: {selectedNode.type}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      ID: {selectedNode.id}
-                    </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-2">
-                    <Label>Class Name</Label>
-                    <Input
-                      value={selectedNode.className || ''}
-                      onChange={(e) => handleUpdateNode(selectedNode.id, { className: e.target.value })}
-                      placeholder="Ex: bg-blue-500 p-4"
-                    />
-                  </div>
-                  
-                  {selectedNode.props && Object.keys(selectedNode.props).length > 0 && (
-                    <>
-                      <Separator />
-                      <div>
-                        <h4 className="font-medium mb-2 text-sm">Props</h4>
-                        <div className="space-y-2">
-                          {Object.entries(selectedNode.props).map(([key, value]) => (
-                            <div key={key}>
-                              <Label className="text-xs">{key}</Label>
-                              <Input
-                                value={String(value)}
-                                onChange={(e) => {
-                                  handleUpdateNode(selectedNode.id, {
-                                    props: { ...selectedNode.props, [key]: e.target.value }
-                                  });
-                                }}
-                                className="text-sm"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  
-                  {selectedNode.children && selectedNode.children.length > 0 && (
-                    <>
-                      <Separator />
-                      <div className="text-sm">
-                        <strong>Filhos:</strong> {selectedNode.children.length}
-                      </div>
-                    </>
-                  )}
-                </div>
+                <AdvancedPropertyEditor
+                  component={{
+                    id: selectedNode.id,
+                    componentType: selectedNode.type,
+                    name: selectedNode.type,
+                    className: selectedNode.className,
+                    ...(selectedNode.props || {}),
+                    ...(selectedNode.styles || {}),
+                  } as Partial<BaseComponentProperties>}
+                  onChange={(updates) => {
+                    // Separar props de estilos
+                    const { 
+                      className, 
+                      componentType, 
+                      id, 
+                      name,
+                      // Propriedades de estilo
+                      width, height, minWidth, minHeight, maxWidth, maxHeight,
+                      margin, marginTop, marginRight, marginBottom, marginLeft,
+                      padding, paddingTop, paddingRight, paddingBottom, paddingLeft,
+                      fontFamily, fontSize, fontWeight, lineHeight, letterSpacing,
+                      color, backgroundColor, textDecoration, textTransform,
+                      borderRadius, borderWidth, borderStyle, borderColor,
+                      opacity, zIndex, boxShadow, transform, transformOrigin,
+                      transition, animation, filter,
+                      ...restProps 
+                    } = updates;
+                    
+                    // Criar objeto de estilos
+                    const styles: any = {};
+                    if (width !== undefined) styles.width = width;
+                    if (height !== undefined) styles.height = height;
+                    if (minWidth !== undefined) styles.minWidth = minWidth;
+                    if (minHeight !== undefined) styles.minHeight = minHeight;
+                    if (maxWidth !== undefined) styles.maxWidth = maxWidth;
+                    if (maxHeight !== undefined) styles.maxHeight = maxHeight;
+                    if (margin !== undefined) styles.margin = margin;
+                    if (marginTop !== undefined) styles.marginTop = marginTop;
+                    if (marginRight !== undefined) styles.marginRight = marginRight;
+                    if (marginBottom !== undefined) styles.marginBottom = marginBottom;
+                    if (marginLeft !== undefined) styles.marginLeft = marginLeft;
+                    if (padding !== undefined) styles.padding = padding;
+                    if (paddingTop !== undefined) styles.paddingTop = paddingTop;
+                    if (paddingRight !== undefined) styles.paddingRight = paddingRight;
+                    if (paddingBottom !== undefined) styles.paddingBottom = paddingBottom;
+                    if (paddingLeft !== undefined) styles.paddingLeft = paddingLeft;
+                    if (fontFamily !== undefined) styles.fontFamily = fontFamily;
+                    if (fontSize !== undefined) styles.fontSize = fontSize;
+                    if (fontWeight !== undefined) styles.fontWeight = fontWeight;
+                    if (lineHeight !== undefined) styles.lineHeight = lineHeight;
+                    if (letterSpacing !== undefined) styles.letterSpacing = letterSpacing;
+                    if (color !== undefined) styles.color = color;
+                    if (backgroundColor !== undefined) styles.backgroundColor = backgroundColor;
+                    if (textDecoration !== undefined) styles.textDecoration = textDecoration;
+                    if (textTransform !== undefined) styles.textTransform = textTransform;
+                    if (borderRadius !== undefined) styles.borderRadius = borderRadius;
+                    if (borderWidth !== undefined) styles.borderWidth = borderWidth;
+                    if (borderStyle !== undefined) styles.borderStyle = borderStyle;
+                    if (borderColor !== undefined) styles.borderColor = borderColor;
+                    if (opacity !== undefined) styles.opacity = opacity;
+                    if (zIndex !== undefined) styles.zIndex = zIndex;
+                    
+                    // Atualizar o nó
+                    handleUpdateNode(selectedNode.id, {
+                      className,
+                      props: Object.keys(restProps).length > 0 ? { ...selectedNode.props, ...restProps } : selectedNode.props,
+                      styles: Object.keys(styles).length > 0 ? { ...selectedNode.styles, ...styles } : selectedNode.styles,
+                    });
+                  }}
+                />
               ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  <Settings className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Selecione um componente</p>
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground py-8">
+                    <Settings className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Selecione um componente</p>
+                    <p className="text-xs mt-2">para editar suas propriedades avançadas</p>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
         
         {/* Export Dialog */}
@@ -798,9 +861,13 @@ export function HierarchicalPageBuilder({
               rows={20}
               className="font-mono text-xs"
             />
-            <Button onClick={() => {
-              navigator.clipboard.writeText(exportedCode);
-              toast.success('Código copiado!');
+            <Button onClick={async () => {
+              const success = await copyToClipboard(exportedCode);
+              if (success) {
+                toast.success('Código copiado!');
+              } else {
+                toast.error('Erro ao copiar código');
+              }
             }}>
               Copiar
             </Button>

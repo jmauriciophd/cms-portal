@@ -27,12 +27,14 @@ import {
   Activity as ActivityIcon,
   BarChart3,
   Lock,
-  Shield
+  Shield,
+  Sparkles
 } from 'lucide-react';
 import { usePermissions } from '../auth/PermissionsContext';
 import { useRealtimeStats, useRealtimeViewsHistory, ConnectionStatus } from '../hooks/useRealTimeData';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner@2.0.3';
+import { StorageMonitor } from './StorageMonitor';
 
 interface Activity {
   id: string;
@@ -89,40 +91,98 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
   }, []);
 
   const loadDashboardData = () => {
-    // Load real data from localStorage
-    const articles = JSON.parse(localStorage.getItem('articles') || '[]');
-    const pages = JSON.parse(localStorage.getItem('pages') || '[]');
-    const files = JSON.parse(localStorage.getItem('files') || '[]');
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    try {
+      // Load real data from localStorage with safe parsing
+      const articlesData = localStorage.getItem('articles');
+      const pagesData = localStorage.getItem('pages');
+      const filesData = localStorage.getItem('files');
+      const usersData = localStorage.getItem('users');
 
-    // Calculate stats
-    setStats({
-      articles: {
-        total: articles.length,
-        published: articles.filter((a: any) => a.status === 'published').length,
-        draft: articles.filter((a: any) => a.status === 'draft').length
-      },
-      pages: {
-        total: pages.length,
-        published: pages.filter((p: any) => p.status === 'published').length,
-        draft: pages.filter((p: any) => p.status === 'draft').length
-      },
-      files: {
-        total: files.length,
-        images: files.filter((f: any) => f.type === 'file' && f.mimeType?.startsWith('image/')).length
-      },
-      users: {
-        total: users.length,
-        active: users.filter((u: any) => u.status === 'active').length
-      },
-    });
+      let articles = [];
+      let pages = [];
+      let files = [];
+      let users = [];
+
+      try {
+        articles = articlesData ? JSON.parse(articlesData) : [];
+        if (!Array.isArray(articles)) articles = [];
+      } catch (e) {
+        console.error('Error parsing articles:', e);
+        articles = [];
+      }
+
+      try {
+        pages = pagesData ? JSON.parse(pagesData) : [];
+        if (!Array.isArray(pages)) pages = [];
+      } catch (e) {
+        console.error('Error parsing pages:', e);
+        pages = [];
+      }
+
+      try {
+        files = filesData ? JSON.parse(filesData) : [];
+        if (!Array.isArray(files)) files = [];
+      } catch (e) {
+        console.error('Error parsing files:', e);
+        files = [];
+      }
+
+      try {
+        users = usersData ? JSON.parse(usersData) : [];
+        if (!Array.isArray(users)) users = [];
+      } catch (e) {
+        console.error('Error parsing users:', e);
+        users = [];
+      }
+
+      // Calculate stats
+      setStats({
+        articles: {
+          total: articles.length,
+          published: articles.filter((a: any) => a.status === 'published').length,
+          draft: articles.filter((a: any) => a.status === 'draft').length
+        },
+        pages: {
+          total: pages.length,
+          published: pages.filter((p: any) => p.status === 'published').length,
+          draft: pages.filter((p: any) => p.status === 'draft').length
+        },
+        files: {
+          total: files.length,
+          images: files.filter((f: any) => f.type === 'file' && f.mimeType?.startsWith('image/')).length
+        },
+        users: {
+          total: users.length,
+          active: users.filter((u: any) => u.status === 'active').length
+        },
+      });
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Set default empty stats
+      setStats({
+        articles: { total: 0, published: 0, draft: 0 },
+        pages: { total: 0, published: 0, draft: 0 },
+        files: { total: 0, images: 0 },
+        users: { total: 0, active: 0 }
+      });
+    }
 
     // Load activities
-    const storedActivities = localStorage.getItem('dashboardActivities');
-    if (storedActivities) {
-      setActivities(JSON.parse(storedActivities));
-    } else {
-      // Generate mock activities
+    try {
+      const storedActivities = localStorage.getItem('dashboardActivities');
+      if (storedActivities) {
+        const parsedActivities = JSON.parse(storedActivities);
+        if (Array.isArray(parsedActivities)) {
+          setActivities(parsedActivities);
+        } else {
+          generateMockActivities();
+        }
+      } else {
+        // Generate mock activities
+        generateMockActivities();
+      }
+    } catch (error) {
+      console.error('Error loading activities:', error);
       generateMockActivities();
     }
   };
@@ -177,7 +237,14 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
   };
 
   const quickActions: QuickAction[] = [
-
+    {
+      title: '✨ Sistema de Schemas',
+      description: 'Explore as propriedades avançadas',
+      icon: Sparkles,
+      action: () => window.location.href = '/admin/schemas-demo',
+      color: 'bg-gradient-to-r from-indigo-500 to-purple-500',
+      requiredPermission: 'content.create',
+    },
     {
       title: 'Nova Página',
       description: 'Criar uma nova página no site',
@@ -632,6 +699,11 @@ export function DashboardHome({ currentUser, onNavigate }: DashboardHomeProps) {
           </Card>
         )}
       </div>
+
+      {/* Monitor de Armazenamento */}
+      {canViewWidget('storage') && (
+        <StorageMonitor />
+      )}
 
       {/* Dicas Rápidas - Sheet */}
       {hasPermission('dashboard.quicktips') && (

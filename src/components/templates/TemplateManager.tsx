@@ -71,7 +71,26 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
   useEffect(() => {
     loadTemplates();
     createDefaultTemplates();
-  }, []);
+
+    // Listener para abrir template da pesquisa global
+    const handleSelectItem = (e: CustomEvent) => {
+      const { itemId, viewId } = e.detail;
+      if (viewId === 'templates') {
+        const templateToEdit = templates.find(t => t.id === itemId);
+        if (templateToEdit) {
+          setEditingTemplate(templateToEdit);
+          setShowEditor(true);
+          toast.success(`Editando template: ${templateToEdit.name}`);
+        }
+      }
+    };
+
+    window.addEventListener('selectItem', handleSelectItem as EventListener);
+
+    return () => {
+      window.removeEventListener('selectItem', handleSelectItem as EventListener);
+    };
+  }, [templates]);
 
   const loadTemplates = () => {
     const stored = localStorage.getItem('templates');

@@ -1231,7 +1231,7 @@ export function FileManager() {
 
       {/* New Folder Dialog */}
       <Dialog open={showNewFolder} onOpenChange={setShowNewFolder}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Criar Nova Pasta</DialogTitle>
             <DialogDescription>

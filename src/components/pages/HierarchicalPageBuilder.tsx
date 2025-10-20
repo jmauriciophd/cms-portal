@@ -681,7 +681,7 @@ export function HierarchicalPageBuilder({
         {/* Main content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Component Library - Nova Interface Melhorada */}
-          <div className="w-96 border-r">
+          <div className="w-96 border-r h-full">
             <ImprovedComponentLibrary 
               onComponentClick={(definition) => {
                 // Ao clicar em um componente, adiciona ao final da árvore

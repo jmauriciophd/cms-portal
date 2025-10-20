@@ -508,9 +508,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   const getBreadcrumbItems = () => {
     const items: { label: string; path: string }[] = [
-      { label: 'Início', path: '' },
-      { label: 'Arquivos', path: '' },
-      { label: 'páginas', path: '' }
+      { label: 'Páginas', path: '' }
     ];
 
     if (currentPath) {
@@ -667,10 +665,10 @@ export function PageManager({ currentUser }: PageManagerProps) {
                   {index === 0 ? (
                     <BreadcrumbItem>
                       <BreadcrumbLink 
-                        className="flex items-center gap-1 cursor-pointer"
+                        className="flex items-center gap-1 cursor-pointer hover:text-blue-600 transition-colors"
                         onClick={() => setCurrentPath('')}
                       >
-                        <Home className="w-4 h-4" />
+                        <Layout className="w-4 h-4" />
                         {item.label}
                       </BreadcrumbLink>
                     </BreadcrumbItem>
@@ -682,15 +680,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
                     <BreadcrumbItem>
                       <BreadcrumbLink 
                         className="cursor-pointer hover:text-blue-600 transition-colors"
-                        onClick={() => {
-                          // Se for "Início", "Arquivos" ou "páginas" → voltar para raiz
-                          if (index <= 2) {
-                            setCurrentPath('');
-                          } else {
-                            // Pasta específica → navegar para aquele path
-                            setCurrentPath(item.path);
-                          }
-                        }}
+                        onClick={() => setCurrentPath(item.path)}
                       >
                         {item.label}
                       </BreadcrumbLink>

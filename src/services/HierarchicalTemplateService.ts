@@ -4,6 +4,7 @@
  */
 
 import { HierarchicalNode } from '../components/editor/HierarchicalRenderNode';
+import { defaultTemplates } from '../utils/defaultTemplates';
 
 export type TemplateType = 'page' | 'article' | 'header' | 'footer' | 'section' | 'custom';
 
@@ -94,10 +95,28 @@ class HierarchicalTemplateService {
   }
 
   /**
+   * Inicializar templates padrão se não existirem
+   */
+  private initializeDefaultTemplates(): void {
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (!stored || JSON.parse(stored).length === 0) {
+        localStorage.setItem(this.storageKey, JSON.stringify(defaultTemplates));
+        console.log(`${defaultTemplates.length} templates padrão inicializados`);
+      }
+    } catch (error) {
+      console.error('Erro ao inicializar templates padrão:', error);
+    }
+  }
+
+  /**
    * Obter todos os templates
    */
   getAllTemplates(): HierarchicalTemplate[] {
     try {
+      // Inicializar templates padrão na primeira execução
+      this.initializeDefaultTemplates();
+      
       const stored = localStorage.getItem(this.storageKey);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {

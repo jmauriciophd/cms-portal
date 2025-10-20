@@ -316,7 +316,7 @@ export function CustomFieldsManager() {
                 Novo Grupo
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {selectedGroup ? 'Editar Grupo' : 'Novo Grupo de Campos'}
@@ -494,7 +494,7 @@ export function CustomFieldsManager() {
                       Adicionar Campo
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>
                         {editingField ? 'Editar Campo' : 'Novo Campo'}

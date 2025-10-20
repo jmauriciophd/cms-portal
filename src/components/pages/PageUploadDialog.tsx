@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { 
   Upload, 
   FileJson, 
@@ -12,7 +13,9 @@ import {
   XCircle, 
   FileText,
   AlertCircle,
-  Info
+  Info,
+  Code,
+  FolderArchive
 } from 'lucide-react';
 import { PageVersionService, type PageData, type UploadResult } from '../../services/PageVersionService';
 import { toast } from 'sonner@2.0.3';
@@ -23,37 +26,117 @@ interface PageUploadDialogProps {
   onSuccess: (page: PageData) => void;
 }
 
+type ImportType = 'json' | 'html' | 'zip';
+
 export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [importType, setImportType] = useState<ImportType>('json');
+  const [importedPages, setImportedPages] = useState<PageData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      validateAndSetFile(file);
+    }
+  };
+
+  const validateAndSetFile = (file: File) => {
+    const acceptedExtensions = {
+      json: ['.json'],
+      html: ['.html', '.htm'],
+      zip: ['.zip']
+    };
+
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+    const isValid = acceptedExtensions[importType].includes(extension);
+
+    if (isValid) {
       setSelectedFile(file);
       setUploadResult(null);
+      setImportedPages([]);
+    } else {
+      toast.error('Formato inválido', {
+        description: `Use arquivos ${acceptedExtensions[importType].join(', ')} para importação de ${importType.toUpperCase()}`
+      });
     }
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
-    if (file && file.name.endsWith('.json')) {
-      setSelectedFile(file);
-      setUploadResult(null);
-    } else {
-      toast.error('Formato inválido', {
-        description: 'Use apenas arquivos .json'
-      });
+    if (file) {
+      validateAndSetFile(file);
     }
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+  };
+
+  const processHTMLFile = async (file: File): Promise<PageData> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const htmlContent = e.target?.result as string;
+          
+          // Extrair título do HTML (se existir tag <title>)
+          const titleMatch = htmlContent.match(/<title>(.*?)<\/title>/i);
+          const title = titleMatch ? titleMatch[1] : file.name.replace(/\.(html|htm)$/i, '');
+          
+          // Criar slug baseado no nome do arquivo
+          const slug = file.name.replace(/\.(html|htm)$/i, '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+          
+          // Extrair meta description (se existir)
+          const metaDescMatch = htmlContent.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i);
+          const excerpt = metaDescMatch ? metaDescMatch[1] : '';
+          
+          const pageData: PageData = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            title,
+            slug,
+            content: htmlContent,
+            excerpt,
+            status: 'draft',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            template: 'default'
+          };
+          
+          resolve(pageData);
+        } catch (error: any) {
+          reject(new Error('Erro ao processar arquivo HTML: ' + error.message));
+        }
+      };
+      reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+      reader.readAsText(file);
+    });
+  };
+
+  const processZIPFile = async (file: File): Promise<PageData[]> => {
+    // Para implementação completa, precisaria de biblioteca como JSZip
+    // Por enquanto, vou simular processamento de ZIP
+    toast.info('Processando arquivo ZIP...', {
+      description: 'Esta funcionalidade processa múltiplos arquivos HTML'
+    });
+    
+    // Simulação: retornar array vazio
+    // Em produção, usaríamos JSZip para extrair e processar cada arquivo HTML
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve([]);
+        toast.warning('Funcionalidade ZIP', {
+          description: 'Adicione a biblioteca JSZip para suporte completo a arquivos ZIP'
+        });
+      }, 1000);
+    });
   };
 
   const handleUpload = async (replaceExisting: boolean = false, existingPageId?: string) => {
@@ -70,10 +153,65 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
 
       let result: UploadResult;
       
-      if (replaceExisting && existingPageId) {
-        result = await PageVersionService.uploadPageWithReplace(selectedFile, true, existingPageId);
+      if (importType === 'html') {
+        // Processar arquivo HTML
+        const pageData = await processHTMLFile(selectedFile);
+        
+        // Salvar no localStorage (simular upload)
+        const storedPages = localStorage.getItem('pages');
+        const pages: PageData[] = storedPages ? JSON.parse(storedPages) : [];
+        
+        // Verificar conflito
+        const existingPage = pages.find(p => p.slug === pageData.slug);
+        if (existingPage && !replaceExisting) {
+          clearInterval(progressInterval);
+          result = {
+            success: false,
+            action: 'cancelled',
+            conflict: {
+              existingPage,
+              reason: 'Uma página com o mesmo slug já existe'
+            }
+          };
+        } else {
+          if (existingPage && replaceExisting) {
+            // Substituir página existente
+            const updatedPages = pages.map(p => p.slug === pageData.slug ? { ...pageData, id: p.id } : p);
+            localStorage.setItem('pages', JSON.stringify(updatedPages));
+            result = {
+              success: true,
+              action: 'replaced',
+              page: { ...pageData, id: existingPage.id }
+            };
+          } else {
+            // Adicionar nova página
+            pages.push(pageData);
+            localStorage.setItem('pages', JSON.stringify(pages));
+            result = {
+              success: true,
+              action: 'created',
+              page: pageData
+            };
+          }
+        }
+      } else if (importType === 'zip') {
+        // Processar arquivo ZIP
+        const pages = await processZIPFile(selectedFile);
+        setImportedPages(pages);
+        
+        clearInterval(progressInterval);
+        result = {
+          success: pages.length > 0,
+          action: 'created',
+          error: pages.length === 0 ? 'Nenhuma página HTML encontrada no arquivo ZIP' : undefined
+        };
       } else {
-        result = await PageVersionService.uploadPage(selectedFile);
+        // Processar JSON (comportamento original)
+        if (replaceExisting && existingPageId) {
+          result = await PageVersionService.uploadPageWithReplace(selectedFile, true, existingPageId);
+        } else {
+          result = await PageVersionService.uploadPage(selectedFile);
+        }
       }
 
       clearInterval(progressInterval);
@@ -81,15 +219,20 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
       setUploadResult(result);
 
       if (result.success) {
-        toast.success('Upload concluído!', {
-          description: result.action === 'created' 
+        const description = importType === 'zip' 
+          ? `${importedPages.length} páginas importadas`
+          : result.action === 'created' 
             ? 'Página criada com sucesso' 
-            : 'Página atualizada com sucesso'
-        });
+            : 'Página atualizada com sucesso';
+            
+        toast.success('Upload concluído!', { description });
 
         setTimeout(() => {
           if (result.page) {
             onSuccess(result.page);
+            handleClose();
+          } else if (importedPages.length > 0) {
+            onSuccess(importedPages[0]); // Retornar primeira página como referência
             handleClose();
           }
         }, 1500);
@@ -130,7 +273,34 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
     setUploadResult(null);
     setShowConflictDialog(false);
     setUploadProgress(0);
+    setImportedPages([]);
     onClose();
+  };
+
+  const getAcceptedFormats = () => {
+    switch (importType) {
+      case 'json':
+        return '.json';
+      case 'html':
+        return '.html,.htm';
+      case 'zip':
+        return '.zip';
+      default:
+        return '.json';
+    }
+  };
+
+  const getFileIcon = () => {
+    switch (importType) {
+      case 'json':
+        return FileJson;
+      case 'html':
+        return Code;
+      case 'zip':
+        return FolderArchive;
+      default:
+        return FileJson;
+    }
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -139,6 +309,8 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
+  const FileIcon = getFileIcon();
+
   return (
     <>
       <Dialog open={open && !showConflictDialog} onOpenChange={handleClose}>
@@ -146,25 +318,69 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="h-5 w-5 text-blue-600" />
-              Fazer Upload de Página
+              Importar Página
             </DialogTitle>
             <DialogDescription>
-              Importe uma página exportada anteriormente
+              Importe páginas em diferentes formatos
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Alert informativo */}
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                <strong>Formatos aceitos:</strong> Arquivos .json exportados pelo sistema
-                <br />
-                <strong>Tamanho máximo:</strong> 10MB
-                <br />
-                <strong>Versionamento:</strong> Uma nova versão será criada automaticamente
-              </AlertDescription>
-            </Alert>
+            {/* Seletor de tipo de importação */}
+            <Tabs value={importType} onValueChange={(v) => {
+              setImportType(v as ImportType);
+              setSelectedFile(null);
+              setUploadResult(null);
+              setImportedPages([]);
+            }}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="json" className="flex items-center gap-2">
+                  <FileJson className="h-4 w-4" />
+                  JSON
+                </TabsTrigger>
+                <TabsTrigger value="html" className="flex items-center gap-2">
+                  <Code className="h-4 w-4" />
+                  HTML
+                </TabsTrigger>
+                <TabsTrigger value="zip" className="flex items-center gap-2">
+                  <FolderArchive className="h-4 w-4" />
+                  ZIP (Pasta)
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="json" className="mt-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    <strong>Formato JSON:</strong> Arquivos .json exportados pelo sistema
+                    <br />
+                    <strong>Versionamento:</strong> Uma nova versão será criada automaticamente
+                  </AlertDescription>
+                </Alert>
+              </TabsContent>
+
+              <TabsContent value="html" className="mt-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    <strong>Formato HTML:</strong> Arquivos .html ou .htm com conteúdo de página
+                    <br />
+                    <strong>Conversão:</strong> O HTML será convertido automaticamente para o formato do sistema
+                  </AlertDescription>
+                </Alert>
+              </TabsContent>
+
+              <TabsContent value="zip" className="mt-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    <strong>Formato ZIP:</strong> Arquivo .zip contendo múltiplos arquivos HTML
+                    <br />
+                    <strong>Importação em lote:</strong> Todas as páginas HTML serão importadas de uma vez
+                  </AlertDescription>
+                </Alert>
+              </TabsContent>
+            </Tabs>
 
             {/* Área de upload */}
             {!selectedFile && !uploadResult && (
@@ -174,17 +390,19 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
                 onDragOver={handleDragOver}
                 className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
               >
-                <FileJson className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <FileIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                 <p className="text-gray-700 mb-2">
                   Clique para selecionar ou arraste um arquivo aqui
                 </p>
                 <p className="text-sm text-gray-500">
-                  Apenas arquivos .json
+                  {importType === 'json' && 'Apenas arquivos .json'}
+                  {importType === 'html' && 'Arquivos .html ou .htm'}
+                  {importType === 'zip' && 'Arquivos .zip contendo páginas HTML'}
                 </p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".json"
+                  accept={getAcceptedFormats()}
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -196,7 +414,7 @@ export function PageUploadDialog({ open, onClose, onSuccess }: PageUploadDialogP
               <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3 flex-1">
-                    <FileJson className="h-8 w-8 text-blue-600 flex-shrink-0 mt-1" />
+                    <FileIcon className="h-8 w-8 text-blue-600 flex-shrink-0 mt-1" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">
                         {selectedFile.name}

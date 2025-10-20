@@ -29,7 +29,7 @@ import { SnippetManager } from '../content/SnippetManager';
 import { DashboardHome } from './DashboardHome';
 import { TemplateManager } from '../templates/TemplateManager';
 import { TrashViewer } from '../files/TrashViewer';
-import { EditorDemo } from '../editor/EditorDemo';
+
 import { CustomFieldsManager } from '../content/CustomFieldsManager';
 import { TaxonomyManager } from '../taxonomy/TaxonomyManager';
 import { HierarchicalBuilderDemo } from '../pages/HierarchicalBuilderDemo';
@@ -40,7 +40,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'editorDemo' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -58,14 +58,13 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
 
   const menuItems: MenuItem[] = [
     { id: 'home', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'editor'] },
-    { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
-    { id: 'editorDemo', icon: FileText, label: 'Editor Inteligente', roles: ['admin', 'editor'] },
     { 
       id: 'hierarchicalBuilder', 
       icon: Layers, 
       label: 'Page Builder', 
       roles: ['admin', 'editor'],
       children: [
+        { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
         { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] }
       ]
     },
@@ -111,8 +110,6 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <DashboardHome currentUser={currentUser} onNavigate={setCurrentView} />;
       case 'pages':
         return <PageManager currentUser={currentUser} />;
-      case 'editorDemo':
-        return <EditorDemo />;
       case 'files':
         return <FileManager />;
       case 'trash':
@@ -130,7 +127,7 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
       case 'snippets':
         return <SnippetManager currentUser={currentUser} />;
       case 'templates':
-        return <TemplateManager />;
+        return <TemplateManager onEditingChange={(isEditing) => setSidebarCollapsed(isEditing)} />;
       case 'settings':
         return <SystemSettings currentUser={currentUser} />;
       default:

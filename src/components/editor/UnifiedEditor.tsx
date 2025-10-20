@@ -105,6 +105,7 @@ export function UnifiedEditor({
   const [showTemplateSelector, setShowTemplateSelector] = useState(!initialTitle && !initialComponents.length);
   const [showTreeView, setShowTreeView] = useState(true);
   const [editingComponentId, setEditingComponentId] = useState<string | null>(null);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(!!initialSlug);
 
   // Load last directory from localStorage
   useEffect(() => {
@@ -146,9 +147,15 @@ export function UnifiedEditor({
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
-    if (!initialSlug || slug === generateSlug(initialTitle)) {
+    // Só gera o slug automaticamente se não foi editado manualmente
+    if (!isSlugManuallyEdited) {
       setSlug(generateSlug(value));
     }
+  };
+
+  const handleSlugChange = (value: string) => {
+    setIsSlugManuallyEdited(true);
+    setSlug(value);
   };
 
   const addComponent = (componentType: string, props: any = {}, styles: React.CSSProperties = {}) => {

@@ -233,7 +233,7 @@ export function UserManager() {
 
       {/* User Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {editingUser ? 'Editar Usuário' : 'Novo Usuário'}

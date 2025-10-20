@@ -51,9 +51,62 @@ export function HierarchicalRenderNode({
   
   // Renderiza o componente base
   const renderComponent = () => {
+    // Props que devem ser convertidos para estilos CSS
+    const styleProps = [
+      'fontSize', 'fontWeight', 'color', 'backgroundColor', 'padding', 'margin',
+      'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+      'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+      'borderRadius', 'borderWidth', 'borderColor', 'borderStyle',
+      'textAlign', 'lineHeight', 'letterSpacing', 'textDecoration',
+      'width', 'height', 'maxWidth', 'maxHeight', 'minWidth', 'minHeight',
+      'display', 'position', 'top', 'right', 'bottom', 'left',
+      'zIndex', 'opacity', 'transform', 'transition', 'cursor',
+      'overflow', 'textColor', 'gap', 'flexDirection', 'alignItems',
+      'justifyContent', 'gridTemplateColumns', 'gridTemplateRows',
+      'flexWrap', 'flex', 'flexGrow', 'flexShrink', 'flexBasis',
+      'gridColumn', 'gridRow', 'gridArea', 'order'
+    ];
+    
+    // Props customizados do componente (não vão para o DOM)
+    const componentProps = [
+      'text', 'content', 'level', 'tag', 'variant', 'size', 'fullWidth',
+      'buttonType', 'inputType', 'rows', 'columns', 'direction', 'wrap',
+      'justifyContent', 'alignItems', 'columnSpan', 'rowSpan', 'title',
+      'label', 'type', 'required', 'placeholder'
+    ];
+    
+    // Props HTML válidos que podem ser passados diretamente
+    const validHTMLProps = [
+      'id', 'name', 'value', 'disabled', 'readOnly', 'checked',
+      'autoFocus', 'autoComplete', 'tabIndex', 'aria-label', 'aria-labelledby',
+      'aria-describedby', 'role', 'data-*', 'onClick', 'onChange', 'onSubmit',
+      'onFocus', 'onBlur', 'onMouseEnter', 'onMouseLeave'
+    ];
+    
+    // Extrair estilos
+    const customStyles: React.CSSProperties = {};
+    const htmlProps: Record<string, any> = {};
+    
+    Object.entries(node.props || {}).forEach(([key, value]) => {
+      if (styleProps.includes(key)) {
+        // Converter para estilo CSS
+        if (key === 'textColor') {
+          customStyles.color = value;
+        } else {
+          customStyles[key as keyof React.CSSProperties] = value;
+        }
+      } else if (componentProps.includes(key)) {
+        // Props do componente - não passar para o DOM
+        // Esses serão tratados especificamente em cada caso do switch
+      } else if (key.startsWith('data-') || key.startsWith('aria-') || validHTMLProps.includes(key)) {
+        // Props HTML válidos
+        htmlProps[key] = value;
+      }
+    });
+    
     const combinedProps = {
-      ...node.props,
-      style: node.styles,
+      ...htmlProps,
+      style: { ...customStyles, ...node.styles },
       className: node.className
     };
     
@@ -154,6 +207,41 @@ export function HierarchicalRenderNode({
               alignItems: node.props?.alignItems || 'flex-start',
               gap: node.props?.gap || '1rem',
               flexWrap: node.props?.wrap || 'nowrap',
+              ...node.styles
+            }}
+          >
+            {renderChildren()}
+          </div>
+        );
+      
+      case 'flexRow':
+        return (
+          <div
+            {...combinedProps}
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: node.props?.justifyContent || 'flex-start',
+              alignItems: node.props?.alignItems || 'center',
+              gap: node.props?.gap || '1rem',
+              flexWrap: node.props?.wrap || 'nowrap',
+              ...node.styles
+            }}
+          >
+            {renderChildren()}
+          </div>
+        );
+      
+      case 'flexColumn':
+        return (
+          <div
+            {...combinedProps}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: node.props?.justifyContent || 'flex-start',
+              alignItems: node.props?.alignItems || 'stretch',
+              gap: node.props?.gap || '1rem',
               ...node.styles
             }}
           >
@@ -314,19 +402,23 @@ export function HierarchicalRenderNode({
       // ELEMENTOS LEAF
       // ========================================
       case 'heading':
-        const HeadingTag = (node.props?.tag || 'h2') as keyof JSX.IntrinsicElements;
-        return <HeadingTag {...combinedProps}>{node.content || node.props?.text || 'Heading'}</HeadingTag>;
+        const HeadingTag = (node.props?.level || node.props?.tag || 'h2') as keyof JSX.IntrinsicElements;
+        const headingContent = node.props?.content || node.content || node.props?.text || 'Heading';
+        return <HeadingTag {...combinedProps}>{headingContent}</HeadingTag>;
       
       case 'paragraph':
-        return <p {...combinedProps}>{node.content || node.props?.text || 'Paragraph text'}</p>;
+        const paragraphContent = node.props?.content || node.content || node.props?.text || 'Paragraph text';
+        return <p {...combinedProps}>{paragraphContent}</p>;
       
       case 'text':
-        return <span {...combinedProps}>{node.content || node.props?.text || 'Text'}</span>;
+        const textContent = node.props?.content || node.content || node.props?.text || 'Text';
+        return <span {...combinedProps}>{textContent}</span>;
       
       case 'button':
+        const buttonContent = node.props?.text || node.content || 'Button';
         return (
           <button {...combinedProps} type={node.props?.buttonType || 'button'}>
-            {node.content || node.props?.text || 'Button'}
+            {buttonContent}
           </button>
         );
       
@@ -386,6 +478,16 @@ export function HierarchicalRenderNode({
       
       case 'label':
         return <label {...combinedProps}>{node.content || node.props?.text || 'Label'}</label>;
+      
+      case 'badge':
+        return (
+          <span
+            {...combinedProps}
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${node.className || 'bg-blue-100 text-blue-800'}`}
+          >
+            {node.props?.text || node.content || 'Badge'}
+          </span>
+        );
       
       // ========================================
       // LISTAS

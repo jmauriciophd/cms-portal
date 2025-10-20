@@ -21,11 +21,13 @@ import {
   Edit3,
   History as HistoryIcon,
   Link2,
-  MoreVertical
+  MoreVertical,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { HierarchicalPageBuilder } from '../pages/HierarchicalPageBuilder';
-import { HierarchicalNode } from '../editor/HierarchicalRenderNode';
+import { HierarchicalNode, HierarchicalRenderNode } from '../editor/HierarchicalRenderNode';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import { DeleteConfirmDialog } from '../common/DeleteConfirmDialog';
@@ -49,9 +51,10 @@ export interface Template {
 interface TemplateManagerProps {
   onSelectTemplate?: (template: Template) => void;
   type?: 'article' | 'page' | 'header' | 'footer' | 'custom';
+  onEditingChange?: (isEditing: boolean) => void;
 }
 
-export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps) {
+export function TemplateManager({ onSelectTemplate, type, onEditingChange }: TemplateManagerProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -60,6 +63,8 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
   const [newTemplateDesc, setNewTemplateDesc] = useState('');
   const [selectedType, setSelectedType] = useState<Template['type']>(type || 'page');
   const [filterType, setFilterType] = useState<'all' | Template['type']>('all');
+  const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   
   // Estados para os diálogos
   const [moveDialog, setMoveDialog] = useState<{ open: boolean; item: Template | null }>({ open: false, item: null });
@@ -517,6 +522,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     setEditingTemplate(newTemplate);
     setShowNewDialog(false);
     setShowEditor(true);
+    onEditingChange?.(true); // Colapsar sidebar ao criar novo template
     setNewTemplateName('');
     setNewTemplateDesc('');
   };
@@ -559,12 +565,14 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     saveTemplates(updatedTemplates);
     setShowEditor(false);
     setEditingTemplate(null);
+    onEditingChange?.(false); // Expandir sidebar ao sair do modo de edição
     toast.success('Template salvo com sucesso!');
   };
 
   const handleEditTemplate = (template: Template) => {
     setEditingTemplate(template);
     setShowEditor(true);
+    onEditingChange?.(true); // Colapsar sidebar ao entrar em modo de edição
   };
 
   const handleDuplicateTemplate = (template: Template) => {
@@ -669,6 +677,70 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
     handleDeleteTemplate(template);
   };
 
+  const handlePreviewTemplate = (template: Template) => {
+    setPreviewTemplate(template);
+    setShowPreviewModal(true);
+  };
+
+  const handleOpenInNewTab = () => {
+    if (!previewTemplate) return;
+    
+    const hierarchicalNodes = convertToHierarchicalNodes(previewTemplate.components || []);
+    const htmlContent = generatePreviewHTML(hierarchicalNodes, previewTemplate.name);
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    
+    // Limpar URL após um tempo
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const generatePreviewHTML = (nodes: HierarchicalNode[], title: string): string => {
+    // Função auxiliar para renderizar nodes como HTML
+    const renderNodeToHTML = (node: HierarchicalNode): string => {
+      const styles = node.styles || {};
+      const styleString = Object.entries(styles)
+        .map(([key, value]) => {
+          // Converter camelCase para kebab-case
+          const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          return `${cssKey}: ${value}`;
+        })
+        .join('; ');
+
+      let content = '';
+      if (node.props?.text || node.props?.content) {
+        content = node.props.text || node.props.content;
+      }
+
+      if (node.children && node.children.length > 0) {
+        content = node.children.map(child => renderNodeToHTML(child)).join('');
+      }
+
+      const tag = node.props?.tag || 'div';
+      return `<${tag} style="${styleString}">${content}</${tag}>`;
+    };
+
+    const bodyContent = nodes.map(node => renderNodeToHTML(node)).join('');
+
+    return `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  ${bodyContent}
+</body>
+</html>`;
+  };
+
   const handleMoveConfirm = (newPath: string) => {
     if (moveDialog.item) {
       // Simular movimentação (já que templates não têm pastas ainda)
@@ -728,6 +800,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
           onCancel={() => {
             setShowEditor(false);
             setEditingTemplate(null);
+            onEditingChange?.(false); // Expandir sidebar ao cancelar edição
           }}
         />
       </div>
@@ -890,6 +963,14 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => handlePreviewTemplate(template)}
+                        title="Visualizar template"
+                      >
+                        <Eye className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleEditTemplate(template)}
                         className="flex-1"
                       >
@@ -913,7 +994,7 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDeleteTemplate(template.id)}
+                        onClick={() => handleDeleteTemplate(template)}
                         className="text-red-600"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -937,9 +1018,79 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
         </div>
       )}
 
+      {/* Preview Modal */}
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="max-w-full max-h-full w-screen h-screen p-0 bg-white">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Preview: {previewTemplate?.name}</DialogTitle>
+            <DialogDescription>{previewTemplate?.description || 'Visualização do template'}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col h-full">
+            {/* Header do modal */}
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-lg font-semibold">Preview: {previewTemplate?.name}</h3>
+                <p className="text-sm text-gray-600">{previewTemplate?.description}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenInNewTab}
+                  className="flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Abrir em Nova Aba
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPreviewModal(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Conteúdo do preview */}
+            <div className="flex-1 overflow-auto bg-white">
+              {previewTemplate && (
+                <div className="w-full h-full">
+                  {convertToHierarchicalNodes(previewTemplate.components || []).map((node, index) => (
+                    <HierarchicalRenderNode
+                      key={node.id || index}
+                      node={node}
+                      depth={0}
+                      index={index}
+                      onDrop={() => {}} // Não permite drop no preview
+                      onAddChild={() => {}} // Não permite adicionar no preview
+                      onRemove={() => {}} // Não permite remover no preview
+                      onDuplicate={() => {}} // Não permite duplicar no preview
+                      onSelect={() => {}} // Não permite seleção no preview
+                      onUpdateNode={() => {}} // Não permite edição no preview
+                      selectedNodeId={null}
+                      isPreview={true} // Modo preview
+                    />
+                  ))}
+                  {(!previewTemplate.components || previewTemplate.components.length === 0) && (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      <div className="text-center">
+                        <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                        <p>Template vazio</p>
+                        <p className="text-sm">Este template não possui componentes ainda</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* New Template Dialog */}
       <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Novo Template</DialogTitle>
             <DialogDescription>
@@ -994,6 +1145,47 @@ export function TemplateManager({ onSelectTemplate, type }: TemplateManagerProps
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open, item: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Template"
+        description={`Tem certeza que deseja excluir o template "${deleteDialog.item?.name}"? Esta ação não pode ser desfeita.`}
+      />
+
+      {/* Move Dialog */}
+      <MoveDialog
+        open={moveDialog.open}
+        onOpenChange={(open) => setMoveDialog({ open, item: null })}
+        onConfirm={handleMoveConfirm}
+        item={moveDialog.item as BaseItem}
+        currentPath="/"
+      />
+
+      {/* Rename Dialog */}
+      <RenameDialog
+        open={renameDialog.open}
+        onOpenChange={(open) => setRenameDialog({ open, item: null })}
+        onConfirm={handleRenameConfirm}
+        item={renameDialog.item as BaseItem}
+      />
+
+      {/* History Dialog */}
+      <HistoryDialog
+        open={historyDialog.open}
+        onOpenChange={(open) => setHistoryDialog({ open, item: null })}
+        onRestore={handleHistoryRestore}
+        item={historyDialog.item as BaseItem}
+      />
+
+      {/* Properties Dialog */}
+      <PropertiesDialog
+        open={propertiesDialog.open}
+        onOpenChange={(open) => setPropertiesDialog({ open, item: null })}
+        item={propertiesDialog.item as BaseItem}
+      />
     </div>
   );
 }

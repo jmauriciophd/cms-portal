@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface ComponentDefinition {
   type: string;
@@ -561,20 +562,17 @@ function DraggableComponent({ definition, onComponentClick, viewMode }: Draggabl
         style={{ opacity: isDragging ? 0.5 : 1 }}
         className="cursor-pointer"
       >
-        <Card className="hover:shadow-md transition-all hover:border-indigo-300">
+        <Card className="hover:shadow-sm transition-shadow hover:border-gray-300">
           <CardContent className="p-3">
             <div className="flex items-center gap-3">
-              <div className="flex-shrink-0 p-2 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg">
-                {definition.icon}
-              </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium">{definition.label}</span>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="truncate">{definition.label}</span>
                   {definition.acceptsChildren && (
-                    <Badge variant="secondary" className="text-xs">Container</Badge>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Container</Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground line-clamp-1">
+                <p className="text-[11px] text-gray-500 truncate">
                   {definition.description}
                 </p>
               </div>
@@ -590,42 +588,33 @@ function DraggableComponent({ definition, onComponentClick, viewMode }: Draggabl
       ref={drag} 
       onClick={handleClick}
       style={{ opacity: isDragging ? 0.5 : 1 }}
-      className="cursor-pointer group"
+      className="cursor-pointer group w-full max-w-[140px] mx-auto"
     >
-      <Card className="h-full hover:shadow-lg transition-all hover:border-indigo-400 hover:scale-105">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="flex-shrink-0 p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg text-white group-hover:scale-110 transition-transform">
-              {definition.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm">{definition.label}</span>
-                {definition.acceptsChildren && (
-                  <Badge variant="default" className="text-xs">
-                    Container
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {definition.description}
-              </p>
-            </div>
+      <Card className="h-full hover:shadow-sm transition-shadow border-gray-200 bg-white">
+        <CardContent className="p-2.5 flex flex-col gap-2">
+          {/* Título */}
+          <div className="text-center">
+            <h3 className="text-[11px] font-medium mb-0.5 truncate leading-tight">{definition.label}</h3>
+            <p className="text-[9px] text-gray-500 truncate leading-tight">
+              {definition.description}
+            </p>
           </div>
           
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 bg-white dark:bg-gray-950 group-hover:border-indigo-300 transition-colors">
-            {definition.preview}
+          {/* Preview Visual */}
+          <div className="bg-gray-50 rounded p-2 flex items-center justify-center h-[70px] border border-gray-100">
+            <div className="scale-[0.6] origin-center">
+              {definition.preview}
+            </div>
           </div>
 
-          {definition.tags && definition.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-3">
-              {definition.tags.slice(0, 3).map(tag => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
+          {/* Badge */}
+          <div className="flex flex-col gap-1 items-center">
+            {definition.acceptsChildren && (
+              <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-[9px] px-1.5 py-0">
+                Container
+              </Badge>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -790,8 +779,9 @@ export function ImprovedComponentLibrary({
           </div>
 
           {/* Components Grid/List */}
-          <ScrollArea className="flex-1">
-            <div className="p-4">
+          <div className="flex-1 min-h-0">
+            <ScrollArea className="h-full w-full">
+              <div className="p-4 pb-8">
               {filteredComponents.length === 0 ? (
                 <div className="text-center py-12">
                   <Box className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -818,9 +808,9 @@ export function ImprovedComponentLibrary({
                       </h3>
                       <div className={
                         viewMode === 'grid'
-                          ? 'grid grid-cols-1 lg:grid-cols-2 gap-3'
+                          ? 'grid gap-3'
                           : 'space-y-2'
-                      }>
+                      } style={viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' } : undefined}>
                         {containerComponents.map(comp => (
                           <ErrorBoundary 
                             key={comp.type} 
@@ -849,9 +839,9 @@ export function ImprovedComponentLibrary({
                       </h3>
                       <div className={
                         viewMode === 'grid'
-                          ? 'grid grid-cols-1 lg:grid-cols-2 gap-3'
+                          ? 'grid gap-3'
                           : 'space-y-2'
-                      }>
+                      } style={viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' } : undefined}>
                         {leafComponents.map(comp => (
                           <ErrorBoundary 
                             key={comp.type} 
@@ -875,6 +865,7 @@ export function ImprovedComponentLibrary({
               )}
             </div>
           </ScrollArea>
+          </div>
         </TabsContent>
 
         {/* TEMPLATES TAB */}
@@ -913,8 +904,9 @@ export function ImprovedComponentLibrary({
           </div>
 
           {/* Templates Grid */}
-          <ScrollArea className="flex-1">
-            <div className="p-4">
+          <div className="flex-1 min-h-0">
+            <ScrollArea className="h-full w-full">
+              <div className="p-4 pb-8">
               {filteredTemplates.length === 0 ? (
                 <div className="text-center py-12">
                   <FileCode className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -926,74 +918,58 @@ export function ImprovedComponentLibrary({
               ) : (
                 <div className={
                   viewMode === 'grid'
-                    ? 'grid grid-cols-1 lg:grid-cols-2 gap-4'
+                    ? 'grid gap-3'
                     : 'space-y-3'
-                }>
+                } style={viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' } : undefined}>
                   {filteredTemplates.map(template => (
-                    <Card 
-                      key={template.id} 
-                      className="cursor-pointer hover:shadow-lg transition-all hover:border-indigo-400"
-                      onClick={() => handleTemplateClick(template)}
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-sm line-clamp-1">
-                              {template.name}
-                            </CardTitle>
-                            <CardDescription className="text-xs line-clamp-2 mt-1">
-                              {template.description}
-                            </CardDescription>
-                          </div>
+                    <div key={template.id} className="w-full max-w-[140px] mx-auto">
+                      <Card 
+                        className="cursor-pointer hover:shadow-sm transition-shadow border-gray-200 bg-white h-full"
+                        onClick={() => handleTemplateClick(template)}
+                      >
+                        <CardContent className="p-2.5 flex flex-col gap-2 relative">
+                          {/* Botão Favorito Absoluto */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="flex-shrink-0 h-8 w-8 p-0"
+                            className="absolute top-1.5 right-1.5 h-4 w-4 p-0 hover:bg-transparent z-10"
                             onClick={(e) => toggleFavorite(e, template.id)}
                           >
                             <Heart 
-                              className={`w-4 h-4 ${template.isFavorite ? 'fill-red-500 text-red-500' : ''}`} 
+                              className={`w-2.5 h-2.5 ${template.isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} 
                             />
                           </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          <Badge variant="outline" className="text-xs">
-                            {template.type}
-                          </Badge>
-                          {template.category && (
-                            <Badge variant="secondary" className="text-xs">
-                              {template.category}
-                            </Badge>
-                          )}
-                        </div>
-                        {template.tags && template.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {template.tags.slice(0, 3).map(tag => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
+
+                          {/* Título */}
+                          <div className="text-center pr-4">
+                            <h3 className="text-[11px] font-medium mb-0.5 truncate leading-tight">
+                              {template.name}
+                            </h3>
+                            <p className="text-[9px] text-gray-500 truncate leading-tight">
+                              {template.description}
+                            </p>
                           </div>
-                        )}
-                        <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3" />
-                            {template.usageCount || 0} usos
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {new Date(template.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
+
+                          {/* Preview/Placeholder */}
+                          <div className="bg-gray-50 rounded p-2 flex items-center justify-center h-[70px] border border-gray-100">
+                            <FileCode className="w-5 h-5 text-gray-300" />
+                          </div>
+                          
+                          {/* Badge */}
+                          <div className="flex flex-col gap-1 items-center">
+                            <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-[9px] px-1.5 py-0">
+                              {template.type}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
           </ScrollArea>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

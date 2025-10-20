@@ -13,9 +13,13 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
   const preRef = useRef<HTMLPreElement>(null);
   const [code, setCode] = useState(value);
   const [lineNumbers, setLineNumbers] = useState<string>('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [suggestionPosition, setSuggestionPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
-    // Atualiza o código quando o valor externo mudar
+    // Atualiza o código quando o valor externo mudar (sem formatar automaticamente)
     setCode(value);
   }, [value]);
 
@@ -34,6 +38,46 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setCode(newValue);
+    
+    // Verificar se deve mostrar sugestões de tags HTML
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = newValue.substring(0, cursorPos);
+    const match = textBeforeCursor.match(/<([a-zA-Z]*)$/);
+    
+    if (match) {
+      const partial = match[1].toLowerCase();
+      const htmlTags = [
+        'div', 'span', 'p', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'thead', 'tbody',
+        'header', 'footer', 'nav', 'section', 'article', 'aside', 'main',
+        'form', 'input', 'button', 'textarea', 'select', 'option', 'label',
+        'video', 'audio', 'source', 'canvas', 'svg', 'iframe', 'script', 'style',
+        'meta', 'link', 'title', 'br', 'hr', 'strong', 'em', 'code', 'pre'
+      ];
+      
+      const filtered = htmlTags.filter(tag => tag.startsWith(partial));
+      
+      if (filtered.length > 0) {
+        setSuggestions(filtered);
+        setSuggestionIndex(0);
+        setShowSuggestions(true);
+        
+        // Calcular posição das sugestões
+        if (textareaRef.current) {
+          const lines = textBeforeCursor.split('\n');
+          const currentLine = lines.length;
+          const currentCol = lines[lines.length - 1].length;
+          setSuggestionPosition({
+            top: currentLine * 21, // 21px é aproximadamente a altura da linha
+            left: 60 + currentCol * 7.2 // 60px é a largura dos números de linha + padding
+          });
+        }
+      } else {
+        setShowSuggestions(false);
+      }
+    } else {
+      setShowSuggestions(false);
+    }
   };
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
@@ -43,8 +87,54 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
     }
   };
 
+  const acceptSuggestion = () => {
+    if (!showSuggestions || suggestions.length === 0 || !textareaRef.current) return;
+    
+    const textarea = textareaRef.current;
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = code.substring(0, cursorPos);
+    const match = textBeforeCursor.match(/<([a-zA-Z]*)$/);
+    
+    if (match) {
+      const partial = match[1];
+      const suggestion = suggestions[suggestionIndex];
+      const newValue = code.substring(0, cursorPos - partial.length) + suggestion + code.substring(cursorPos);
+      setCode(newValue);
+      setShowSuggestions(false);
+      
+      setTimeout(() => {
+        const newPos = cursorPos - partial.length + suggestion.length;
+        textarea.selectionStart = textarea.selectionEnd = newPos;
+        textarea.focus();
+      }, 0);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget;
+    
+    // Navegação nas sugestões
+    if (showSuggestions) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSuggestionIndex(prev => (prev + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        acceptSuggestion();
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowSuggestions(false);
+        return;
+      }
+    }
     
     // Tab para inserir indentação
     if (e.key === 'Tab') {
@@ -84,9 +174,9 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
   const applySyntaxHighlighting = (html: string): string => {
     // Primeiro, escapa o HTML original para exibição segura
     let result = html
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
     
@@ -163,6 +253,9 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
             Formatar Código
           </Button>
           <div className="flex-1" />
+          <span className="text-xs text-gray-500 mr-2">
+            💡 Digite &lt; para ver sugestões de tags | Tab/Enter para aceitar | ↑↓ para navegar
+          </span>
           <span className="text-xs text-gray-600">
             {code.split('\n').length} linhas | {code.length} caracteres
           </span>
@@ -170,6 +263,37 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
 
         {/* Editor */}
         <div className="flex-1 overflow-hidden relative bg-[#1e1e1e]">
+          {/* Sugestões de autocomplete */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div 
+              className="absolute z-10 bg-[#252526] border border-gray-600 rounded shadow-lg"
+              style={{
+                top: `${suggestionPosition.top}px`,
+                left: `${suggestionPosition.left}px`,
+                maxHeight: '200px',
+                overflowY: 'auto'
+              }}
+            >
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={suggestion}
+                  className={`px-3 py-1 cursor-pointer text-sm ${
+                    index === suggestionIndex 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-gray-300 hover:bg-gray-700'
+                  }`}
+                  onClick={() => {
+                    setSuggestionIndex(index);
+                    acceptSuggestion();
+                  }}
+                  style={{ fontFamily: 'Monaco, Menlo, "Courier New", monospace' }}
+                >
+                  {suggestion}
+                </div>
+              ))}
+            </div>
+          )}
+          
           <div className="absolute inset-0 flex">
             {/* Line numbers */}
             <pre className="bg-[#252526] text-gray-500 text-right py-4 pr-3 pl-4 text-sm select-none overflow-hidden border-r border-gray-700"
@@ -192,8 +316,9 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
                   fontFamily: 'Monaco, Menlo, "Courier New", monospace',
                   lineHeight: '1.5',
                   color: '#d4d4d4',
-                  whiteSpace: 'pre',
-                  overflowWrap: 'normal'
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere'
                 }}
                 dangerouslySetInnerHTML={{ 
                   __html: applySyntaxHighlighting(code)
@@ -212,8 +337,9 @@ export function HTMLCodeEditor({ value, onChange, onClose }: HTMLCodeEditorProps
                   fontFamily: 'Monaco, Menlo, "Courier New", monospace',
                   lineHeight: '1.5',
                   caretColor: 'white',
-                  whiteSpace: 'pre',
-                  overflowWrap: 'normal'
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere'
                 }}
                 spellCheck={false}
                 autoComplete="off"

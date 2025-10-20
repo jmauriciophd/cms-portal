@@ -399,7 +399,7 @@ export function TaxonomyManager({ currentUser }: TaxonomyManagerProps) {
                   Nova Tag
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>
                     {selectedTag ? 'Editar Tag' : 'Nova Tag'}
@@ -545,7 +545,7 @@ export function TaxonomyManager({ currentUser }: TaxonomyManagerProps) {
                   Nova Categoria
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>
                     {selectedCategory ? 'Editar Categoria' : 'Nova Categoria'}

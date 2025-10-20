@@ -48,6 +48,7 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
   });
   const [activeTab, setActiveTab] = useState('editor');
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -71,8 +72,14 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
     setFormData({
       ...formData,
       title,
-      slug: generateSlug(title)
+      // Só gera o slug automaticamente se não foi editado manualmente
+      slug: isSlugManuallyEdited ? formData.slug : generateSlug(title)
     });
+  };
+
+  const handleSlugChange = (slug: string) => {
+    setIsSlugManuallyEdited(true);
+    setFormData({ ...formData, slug });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -317,7 +324,7 @@ export function ArticleEditor({ article, onSave, onCancel, currentUser }: Articl
                   <Input
                     id="slug"
                     value={formData.slug}
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                    onChange={(e) => handleSlugChange(e.target.value)}
                     placeholder="titulo-da-materia"
                   />
                   <p className="text-xs text-gray-500">

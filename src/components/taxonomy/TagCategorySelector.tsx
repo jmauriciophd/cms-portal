@@ -340,7 +340,7 @@ export function TagCategorySelector({
                   Nova
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Criar Nova Tag</DialogTitle>
                   <DialogDescription>

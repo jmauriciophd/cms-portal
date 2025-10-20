@@ -38,7 +38,7 @@ export function DeleteConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[95vw] max-w-sm sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-orange-600">
             <Trash2 className="w-5 h-5" />

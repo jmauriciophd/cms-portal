@@ -82,7 +82,7 @@ export function CopyFileDialog({ file, allFiles, onComplete, onCancel }: FileOpe
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-lg sm:max-w-xl md:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Copy className="w-5 h-5" />
@@ -213,7 +213,7 @@ export function MoveFileDialog({ file, allFiles, onComplete, onCancel }: FileOpe
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-lg sm:max-w-xl md:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Move className="w-5 h-5" />
@@ -335,7 +335,7 @@ export function RenameFileDialog({ file, allFiles, onComplete, onCancel }: FileO
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent>
+      <DialogContent className="w-[95vw] max-w-md sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileEdit className="w-5 h-5" />
@@ -450,7 +450,7 @@ export function DeleteFileDialog({ file, allFiles, onComplete, onCancel }: FileO
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent>
+      <DialogContent className="w-[95vw] max-w-md sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-orange-600">
             <Trash2 className="w-5 h-5" />

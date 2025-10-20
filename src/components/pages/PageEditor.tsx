@@ -94,6 +94,7 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
   const [showSnippetSelector, setShowSnippetSelector] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [availableTemplates, setAvailableTemplates] = useState<Template[]>([]);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const richTextEditorRef = useRef<any>(null);
 
   useEffect(() => {
@@ -101,6 +102,71 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
       setFormData(page);
     }
   }, [page]);
+
+  // Função para converter components do template em HTML
+  const convertTemplateToHTML = (components: any[]): string => {
+    if (!components || !Array.isArray(components)) {
+      return '';
+    }
+
+    const renderNode = (node: any): string => {
+      if (!node || typeof node !== 'object') return '';
+
+      const { type, props = {}, children = [], content = '' } = node;
+      
+      // Estilos inline
+      let styleStr = '';
+      if (node.styles) {
+        styleStr = Object.entries(node.styles)
+          .map(([key, value]) => {
+            // Converter camelCase para kebab-case
+            const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+            return `${cssKey}: ${value}`;
+          })
+          .join('; ');
+      }
+
+      // Classes
+      const classStr = node.className || props.className || '';
+
+      // Renderizar com base no tipo
+      switch (type) {
+        case 'heading':
+          const level = props.level || 2;
+          return `<h${level}${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${props.text || content || 'Título'}${children.map(renderNode).join('')}</h${level}>`;
+        
+        case 'text':
+        case 'paragraph':
+          return `<p${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${props.text || content || 'Texto'}${children.map(renderNode).join('')}</p>`;
+        
+        case 'container':
+        case 'section':
+          return `<div${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${children.map(renderNode).join('')}</div>`;
+        
+        case 'button':
+          return `<button${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${props.text || content || 'Botão'}</button>`;
+        
+        case 'image':
+          return `<img src="${props.src || 'https://via.placeholder.com/800x400'}" alt="${props.alt || ''}"${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''} />`;
+        
+        case 'list':
+          const listTag = props.ordered ? 'ol' : 'ul';
+          return `<${listTag}${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${children.map(renderNode).join('')}</${listTag}>`;
+        
+        case 'listItem':
+          return `<li${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${props.text || content || 'Item'}${children.map(renderNode).join('')}</li>`;
+        
+        case 'link':
+          return `<a href="${props.href || '#'}"${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${props.text || content || 'Link'}${children.map(renderNode).join('')}</a>`;
+        
+        default:
+          // Para tipos desconhecidos, renderizar como div com children
+          return `<div${classStr ? ` class="${classStr}"` : ''}${styleStr ? ` style="${styleStr}"` : ''}>${children.map(renderNode).join('')}</div>`;
+      }
+    };
+
+    return components.map(renderNode).join('\n');
+  };
 
   // Carregar templates disponíveis do localStorage
   useEffect(() => {
@@ -131,6 +197,23 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Aplicar conteúdo do template quando selecionado
+  const handleTemplateChange = (templateId: string) => {
+    setFormData(prev => ({ ...prev, template: templateId }));
+    
+    // Se não for o template default, aplicar o conteúdo
+    if (templateId !== 'default') {
+      const selectedTemplate = availableTemplates.find(t => t.id === templateId);
+      if (selectedTemplate && selectedTemplate.components) {
+        const htmlContent = convertTemplateToHTML(selectedTemplate.components);
+        if (htmlContent) {
+          setFormData(prev => ({ ...prev, content: htmlContent }));
+          toast.success(`Template "${selectedTemplate.name}" aplicado ao conteúdo!`);
+        }
+      }
+    }
+  };
+
   // Gerar slug automaticamente do título
   const generateSlug = (title: string) => {
     return title
@@ -145,8 +228,14 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
     setFormData(prev => ({
       ...prev,
       title,
-      slug: prev.slug || generateSlug(title)
+      // Só gera o slug automaticamente se não foi editado manualmente
+      slug: isSlugManuallyEdited ? prev.slug : generateSlug(title)
     }));
+  };
+
+  const handleSlugChange = (slug: string) => {
+    setIsSlugManuallyEdited(true);
+    setFormData(prev => ({ ...prev, slug }));
   };
 
   const handleMediaSelect = (file: any) => {
@@ -366,7 +455,7 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                       <Input
                         id="slug"
                         value={formData.slug}
-                        onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                        onChange={(e) => handleSlugChange(e.target.value)}
                         placeholder="url-amigavel"
                         className="flex-1"
                       />
@@ -575,7 +664,7 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                       <div className="mt-2">
                         <Select
                           value={formData.template || 'default'}
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, template: value }))}
+                          onValueChange={handleTemplateChange}
                         >
                           <SelectTrigger>
                             <SelectValue />

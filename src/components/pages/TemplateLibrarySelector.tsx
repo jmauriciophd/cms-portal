@@ -132,7 +132,7 @@ export function TemplateLibrarySelector({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[85vh] p-0">
+      <DialogContent className="w-[98vw] max-w-4xl sm:max-w-5xl md:max-w-6xl h-[85vh] p-0">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle>Biblioteca de Templates</DialogTitle>
           <DialogDescription>

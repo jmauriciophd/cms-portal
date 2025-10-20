@@ -549,8 +549,8 @@ class HierarchyService {
         return;
       }
       
-      // Validar filhos
-      if (currentNode.children) {
+      // Validar filhos (apenas se tiver children com length > 0)
+      if (currentNode.children && currentNode.children.length > 0) {
         if (!config.acceptsChildren) {
           errors.push(`${path}: Componente '${currentNode.type}' não aceita filhos`);
         } else {

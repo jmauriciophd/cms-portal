@@ -939,7 +939,7 @@ export function MenuManager() {
 
       {/* New Menu Dialog */}
       <Dialog open={showNewMenuDialog} onOpenChange={setShowNewMenuDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Criar Novo Menu</DialogTitle>
             <DialogDescription>

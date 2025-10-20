@@ -6,7 +6,7 @@ import { Textarea } from '../ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Switch } from '../ui/switch';
-import { Save, Code, Palette, Database, FileCode, Shield, Sparkles, Users, History, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { Save, Code, Palette, Database, FileCode, Shield, Sparkles, Users, History, RefreshCw, Link as LinkIcon, Upload } from 'lucide-react';
 import { PermissionsManager } from './PermissionsManager';
 import { AIProviderConfig } from '../ai/AIProviderConfig';
 import { usePermissions, withPermission } from '../auth/PermissionsContext';
@@ -15,6 +15,7 @@ import { SecurityMonitor } from '../security/SecurityMonitor';
 import { UserManager } from '../users/UserManager';
 import { ContentSyncManager } from '../content/ContentSyncManager';
 import { LinkManager } from '../links/LinkManager';
+import { BatchImportManager } from '../batch-import/BatchImportManager';
 
 interface Settings {
   siteName: string;
@@ -166,7 +167,7 @@ export function SystemSettings({ currentUser }: SystemSettingsProps = {}) {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-1 h-auto">
+        <TabsList className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-11 gap-1 h-auto">
           <TabsTrigger value="general">
             <Database className="w-4 h-4 mr-2" />
             Geral
@@ -212,6 +213,10 @@ export function SystemSettings({ currentUser }: SystemSettingsProps = {}) {
           <TabsTrigger value="links">
             <LinkIcon className="w-4 h-4 mr-2" />
             Links
+          </TabsTrigger>
+          <TabsTrigger value="batch-import">
+            <Upload className="w-4 h-4 mr-2" />
+            Importação em Lote
           </TabsTrigger>
         </TabsList>
 
@@ -500,6 +505,11 @@ export function SystemSettings({ currentUser }: SystemSettingsProps = {}) {
         {/* Link Manager */}
         <TabsContent value="links">
           <LinkManager currentUser={currentUser} />
+        </TabsContent>
+
+        {/* Batch Import Manager */}
+        <TabsContent value="batch-import">
+          <BatchImportManager />
         </TabsContent>
       </Tabs>
     </div>

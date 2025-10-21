@@ -441,6 +441,132 @@ export function AIProviderConfig() {
                   )}
                 </div>
 
+                {/* Modelos */}
+                <div className="space-y-3 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Modelos Configurados</Label>
+                      <p className="text-sm text-gray-600">
+                        Configure os modelos de IA disponíveis para este provedor
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newModel = {
+                          id: `model_${Date.now()}`,
+                          name: '',
+                          displayName: '',
+                          provider: editingProvider.type!,
+                          capabilities: ['text-completion', 'chat'] as any[],
+                          maxTokens: 4096
+                        };
+                        setEditingProvider({
+                          ...editingProvider,
+                          models: [...(editingProvider.models || []), newModel]
+                        });
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar Modelo
+                    </Button>
+                  </div>
+
+                  {(!editingProvider.models || editingProvider.models.length === 0) && (
+                    <Alert>
+                      <AlertDescription className="text-sm">
+                        Pelo menos um modelo deve ser configurado
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-3">
+                    {editingProvider.models?.map((model, index) => (
+                      <div key={model.id} className="p-3 border rounded-lg bg-gray-50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Modelo #{index + 1}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const newModels = editingProvider.models!.filter((_, i) => i !== index);
+                              setEditingProvider({ ...editingProvider, models: newModels });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Nome do Modelo *</Label>
+                            <Input
+                              value={model.name}
+                              onChange={(e) => {
+                                const newModels = [...editingProvider.models!];
+                                newModels[index] = { ...model, name: e.target.value };
+                                setEditingProvider({ ...editingProvider, models: newModels });
+                              }}
+                              placeholder="gpt-4, claude-3-opus, etc"
+                              className="text-sm"
+                            />
+                            <p className="text-xs text-gray-500">
+                              Nome técnico do modelo (ex: gpt-4, gemini-pro)
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label className="text-xs">Nome de Exibição</Label>
+                            <Input
+                              value={model.displayName}
+                              onChange={(e) => {
+                                const newModels = [...editingProvider.models!];
+                                newModels[index] = { ...model, displayName: e.target.value };
+                                setEditingProvider({ ...editingProvider, models: newModels });
+                              }}
+                              placeholder="GPT-4, Claude 3 Opus, etc"
+                              className="text-sm"
+                            />
+                            <p className="text-xs text-gray-500">
+                              Nome amigável para exibição
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs">Máximo de Tokens</Label>
+                          <Input
+                            type="number"
+                            value={model.maxTokens}
+                            onChange={(e) => {
+                              const newModels = [...editingProvider.models!];
+                              newModels[index] = { ...model, maxTokens: parseInt(e.target.value) || 4096 };
+                              setEditingProvider({ ...editingProvider, models: newModels });
+                            }}
+                            placeholder="4096"
+                            className="text-sm"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs">Descrição (opcional)</Label>
+                          <Input
+                            value={model.description || ''}
+                            onChange={(e) => {
+                              const newModels = [...editingProvider.models!];
+                              newModels[index] = { ...model, description: e.target.value };
+                              setEditingProvider({ ...editingProvider, models: newModels });
+                            }}
+                            placeholder="Descrição breve do modelo"
+                            className="text-sm"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Ativar/Desativar */}
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>

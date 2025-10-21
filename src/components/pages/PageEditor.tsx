@@ -12,7 +12,8 @@ import {
   Image as ImageIcon,
   Code,
   Calendar,
-  Upload
+  Upload,
+  Settings
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -96,12 +97,59 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
   const [availableTemplates, setAvailableTemplates] = useState<Template[]>([]);
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const richTextEditorRef = useRef<any>(null);
+  const [customFields, setCustomFields] = useState<any[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (page) {
       setFormData(page);
+      // Carregar valores de campos personalizados se existirem
+      if ((page as any).customFields) {
+        setCustomFieldValues((page as any).customFields);
+      }
     }
   }, [page]);
+
+  // Carregar campos personalizados aplicáveis a páginas
+  useEffect(() => {
+    const loadCustomFields = () => {
+      try {
+        const stored = localStorage.getItem('cms_custom_field_groups');
+        if (stored) {
+          const groups = JSON.parse(stored);
+          const pageFields: any[] = [];
+          
+          groups.forEach((group: any) => {
+            if (group.appliesTo.includes('page')) {
+              group.fields.forEach((field: any) => {
+                pageFields.push({
+                  ...field,
+                  groupName: group.name,
+                  groupId: group.id
+                });
+              });
+            }
+          });
+          
+          setCustomFields(pageFields);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar campos personalizados:', error);
+      }
+    };
+
+    loadCustomFields();
+    
+    // Listener para atualizar quando campos mudarem
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'cms_custom_field_groups') {
+        loadCustomFields();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Função para converter components do template em HTML
   const convertTemplateToHTML = (components: any[]): string => {
@@ -282,10 +330,19 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
       return;
     }
 
+    // Validar campos personalizados obrigatórios
+    for (const field of customFields) {
+      if (field.required && !customFieldValues[field.internalName]) {
+        toast.error(`O campo "${field.name}" é obrigatório`);
+        return;
+      }
+    }
+
     const updatedPage: Page = {
       ...formData,
       status,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      ...(Object.keys(customFieldValues).length > 0 && { customFields: customFieldValues } as any)
     };
 
     onSave(updatedPage);
@@ -608,9 +665,12 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
             <div className="w-80 bg-white border-l border-gray-200 overflow-auto">
               <div className="p-6">
                 <Tabs defaultValue="publish" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className={`grid w-full ${customFields.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     <TabsTrigger value="publish">Publicação</TabsTrigger>
                     <TabsTrigger value="seo">SEO</TabsTrigger>
+                    {customFields.length > 0 && (
+                      <TabsTrigger value="custom">Campos</TabsTrigger>
+                    )}
                   </TabsList>
 
                   <TabsContent value="publish" className="space-y-4 mt-4">
@@ -986,6 +1046,169 @@ export function PageEditor({ page, onSave, onBack, availableSnippets = [], avail
                       </div>
                     </ScrollArea>
                   </TabsContent>
+
+                  {/* Aba de Campos Personalizados */}
+                  {customFields.length > 0 && (
+                    <TabsContent value="custom" className="space-y-4 mt-4">
+                      <ScrollArea className="h-[calc(100vh-300px)]">
+                        <div className="space-y-4 pr-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-sm text-gray-900">Campos Personalizados</h3>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.location.hash = '#/content/custom-fields'}
+                            >
+                              <Settings className="w-3 h-3 mr-1" />
+                              Gerenciar
+                            </Button>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Campos adicionais configurados para páginas
+                          </p>
+
+                          <Separator />
+
+                          {customFields.map((field) => (
+                            <div key={field.internalName}>
+                              <Label htmlFor={field.internalName} className="text-xs uppercase tracking-wide text-gray-500">
+                                {field.name}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                              </Label>
+                              
+                              {field.type === 'text' && (
+                                <Input
+                                  id={field.internalName}
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  placeholder={`Digite ${field.name.toLowerCase()}`}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                />
+                              )}
+
+                              {field.type === 'richtext' && (
+                                <Textarea
+                                  id={field.internalName}
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  placeholder={`Digite ${field.name.toLowerCase()}`}
+                                  rows={4}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                />
+                              )}
+
+                              {field.type === 'number' && (
+                                <Input
+                                  id={field.internalName}
+                                  type="number"
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  placeholder={`Digite ${field.name.toLowerCase()}`}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                  min={field.validation?.min}
+                                  max={field.validation?.max}
+                                />
+                              )}
+
+                              {field.type === 'boolean' && (
+                                <div className="flex items-center gap-2 mt-2">
+                                  <input
+                                    id={field.internalName}
+                                    type="checkbox"
+                                    checked={customFieldValues[field.internalName] === true || customFieldValues[field.internalName] === 'true'}
+                                    onChange={(e) => setCustomFieldValues(prev => ({
+                                      ...prev,
+                                      [field.internalName]: e.target.checked
+                                    }))}
+                                    className="rounded border-gray-300"
+                                  />
+                                  <Label htmlFor={field.internalName} className="text-sm text-gray-700 font-normal">
+                                    Ativar {field.name.toLowerCase()}
+                                  </Label>
+                                </div>
+                              )}
+
+                              {field.type === 'datetime' && (
+                                <Input
+                                  id={field.internalName}
+                                  type="datetime-local"
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                />
+                              )}
+
+                              {field.type === 'date' && (
+                                <Input
+                                  id={field.internalName}
+                                  type="date"
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                />
+                              )}
+
+                              {field.type === 'email' && (
+                                <Input
+                                  id={field.internalName}
+                                  type="email"
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  placeholder={`Digite ${field.name.toLowerCase()}`}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                />
+                              )}
+
+                              {field.type === 'url' && (
+                                <Input
+                                  id={field.internalName}
+                                  type="url"
+                                  value={customFieldValues[field.internalName] || field.defaultValue || ''}
+                                  onChange={(e) => setCustomFieldValues(prev => ({
+                                    ...prev,
+                                    [field.internalName]: e.target.value
+                                  }))}
+                                  placeholder={`Digite ${field.name.toLowerCase()}`}
+                                  className="mt-2 text-sm"
+                                  required={field.required}
+                                />
+                              )}
+
+                              {field.groupName && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Grupo: {field.groupName}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                  )}
                 </Tabs>
               </div>
             </div>

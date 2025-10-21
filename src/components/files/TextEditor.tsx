@@ -27,10 +27,15 @@ export function TextEditor({ file, currentPath, onSave, onClose }: TextEditorPro
       return;
     }
     
-    // Garantir extensão .txt
+    // Garantir extensão adequada
     let finalName = fileName.trim();
-    if (!finalName.endsWith('.txt')) {
-      finalName += '.txt';
+    if (!finalName.endsWith('.txt') && !finalName.endsWith('.html') && !finalName.endsWith('.htm')) {
+      // Se o conteúdo parece HTML, adicionar .html, senão .txt
+      if (content.toLowerCase().includes('<html') || content.toLowerCase().includes('<!doctype')) {
+        finalName += '.html';
+      } else {
+        finalName += '.txt';
+      }
     }
     
     onSave(finalName, content);
@@ -57,7 +62,7 @@ export function TextEditor({ file, currentPath, onSave, onClose }: TextEditorPro
               placeholder="documento.txt"
             />
             <p className="text-xs text-gray-500 mt-1">
-              A extensão .txt será adicionada automaticamente se não especificada
+              Extensões suportadas: .txt, .html, .htm
             </p>
           </div>
 

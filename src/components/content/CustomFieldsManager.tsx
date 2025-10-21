@@ -300,6 +300,11 @@ export function CustomFieldsManager() {
           <p className="text-muted-foreground">
             Gerencie campos personalizados e tipos de dados para páginas, matérias e listas
           </p>
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-900">
+              💡 <strong>Dica:</strong> Campos aplicados a "Páginas" aparecerão automaticamente no editor de páginas em uma aba dedicada.
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleImportJson}>

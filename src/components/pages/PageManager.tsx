@@ -24,7 +24,8 @@ import {
   Link2,
   FileText,
   Upload,
-  Download
+  Download,
+  Settings
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -32,6 +33,8 @@ import { PageEditor } from './PageEditor';
 import { saveHTMLFile, deleteHTMLFile } from '../files/FileSystemHelper';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbList, BreadcrumbPage } from '../ui/breadcrumb';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Label } from '../ui/label';
 import { toast } from 'sonner@2.0.3';
 import { LinkManagementService } from '../../services/LinkManagementService';
 import { initializePageTemplate } from '../../utils/pageTemplates';
@@ -100,6 +103,8 @@ export function PageManager({ currentUser }: PageManagerProps) {
   const [replaceConfirmDialog, setReplaceConfirmDialog] = useState<{ open: boolean; page: Page | null; existingPage: Page | null }>({ open: false, page: null, existingPage: null });
   const [uploadDialog, setUploadDialog] = useState(false);
   const [versionHistoryDialog, setVersionHistoryDialog] = useState<{ open: boolean; pageId: string | null }>({ open: false, pageId: null });
+  const [createFolderDialog, setCreateFolderDialog] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   
   // Snippets disponíveis - carregados do SnippetManager
   const [availableSnippets, setAvailableSnippets] = useState<Array<{ id: string; name: string; content: string }>>([]);
@@ -249,8 +254,19 @@ export function PageManager({ currentUser }: PageManagerProps) {
   );
 
   const handleCreateFolder = () => {
-    const folderName = prompt('Nome da pasta:');
-    if (!folderName) return;
+    setNewFolderName('');
+    setCreateFolderDialog(true);
+  };
+
+  const confirmCreateFolder = () => {
+    const trimmedName = newFolderName.trim();
+    
+    if (!trimmedName) {
+      toast.error('Digite um nome para a pasta');
+      return;
+    }
+
+    const folderName = trimmedName;
 
     const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
     
@@ -262,15 +278,23 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
     const newFolder: FolderItem = {
       id: Date.now().toString(),
-      name: folderName,
+      name: trimmedName,
       type: 'folder',
       path: folderPath,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    saveFolders([...folders, newFolder]);
-    toast.success(`Pasta "${folderName}" criada!`);
+    const updatedFolders = [...folders, newFolder];
+    
+    // Salvar explicitamente
+    localStorage.setItem('page-folders', JSON.stringify(updatedFolders));
+    setFolders(updatedFolders);
+    
+    // Fechar dialog
+    setCreateFolderDialog(false);
+    setNewFolderName('');
+    toast.success(`Pasta "${trimmedName}" criada com sucesso!`);
   };
 
   const handleCreatePage = () => {
@@ -374,11 +398,15 @@ export function PageManager({ currentUser }: PageManagerProps) {
       };
       updatedPages = [newPage, ...pages];
       
+      // Salvar primeiro no localStorage para que o PageVersionService possa encontrar
+      savePages(updatedPages);
+      
       // Criar versão inicial
       try {
         PageVersionService.createVersion(newPage.id, 'Versão inicial');
       } catch (error) {
         console.error('Erro ao criar versão:', error);
+        toast.error('Erro ao criar versão: ' + (error as Error).message);
       }
       
       toast.success('Página criada com sucesso!');
@@ -414,11 +442,15 @@ export function PageManager({ currentUser }: PageManagerProps) {
           : p
       );
       
+      // Salvar primeiro no localStorage para que o PageVersionService possa encontrar
+      savePages(updatedPages);
+      
       // Criar nova versão ao atualizar
       try {
         PageVersionService.createVersion(page.id, 'Atualização manual');
       } catch (error) {
         console.error('Erro ao criar versão:', error);
+        toast.error('Erro ao criar versão: ' + (error as Error).message);
       }
       
       toast.success('Página atualizada!');
@@ -442,7 +474,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
       });
     }
     
-    savePages(updatedPages);
+    // Páginas já foram salvas acima (antes de criar versão)
     setShowEditor(false);
     setEditingPage(null);
   };
@@ -476,7 +508,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
       const updatedPages = pages.filter(p => p.id !== page.id);
       savePages(updatedPages);
-      deleteHTMLFile(page.slug, 'page');
+      deleteHTMLFile({ type: 'page', slug: page.slug });
       
       // Deleta links associados
       LinkManagementService.deleteLinksForResource(page.id);
@@ -731,6 +763,33 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Settings className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => window.location.hash = '#/content/custom-fields'}>
+                <FileText className="w-4 h-4 mr-2" />
+                Campos Personalizados
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.hash = '#/templates'}>
+                <Layout className="w-4 h-4 mr-2" />
+                Gerenciar Templates
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                const pageCount = pages.length;
+                const folderCount = folders.length;
+                toast.info(`Biblioteca: ${pageCount} páginas, ${folderCount} pastas`);
+              }}>
+                <Eye className="w-4 h-4 mr-2" />
+                Estatísticas
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Novo
@@ -888,8 +947,12 @@ export function PageManager({ currentUser }: PageManagerProps) {
                     {item.name}
                   </h3>
 
-                  {item.type === 'page' && item.page && (
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">
+                      {item.type === 'folder' ? 'Pasta' : '.page'}
+                    </Badge>
+                    
+                    {item.type === 'page' && item.page && (
                       <Badge variant={
                         item.page.status === 'published' ? 'default' :
                         item.page.status === 'scheduled' ? 'secondary' : 'outline'
@@ -897,8 +960,8 @@ export function PageManager({ currentUser }: PageManagerProps) {
                         {item.page.status === 'published' ? 'Publicada' :
                          item.page.status === 'scheduled' ? 'Agendada' : 'Rascunho'}
                       </Badge>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   <p className="text-xs text-gray-500 mt-2">
                     {new Date(item.updatedAt).toLocaleDateString('pt-BR')}
@@ -936,7 +999,16 @@ export function PageManager({ currentUser }: PageManagerProps) {
                     Nome
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tipo
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Template
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Slug
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Modificado
@@ -966,6 +1038,11 @@ export function PageManager({ currentUser }: PageManagerProps) {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge variant="secondary" className="text-xs">
+                        {item.type === 'folder' ? 'Pasta' : '.page'}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       {item.type === 'page' && item.page && (
                         <Badge variant={
                           item.page.status === 'published' ? 'default' :
@@ -976,7 +1053,21 @@ export function PageManager({ currentUser }: PageManagerProps) {
                         </Badge>
                       )}
                       {item.type === 'folder' && (
-                        <span className="text-gray-500 text-sm">Pasta</span>
+                        <span className="text-gray-500 text-sm">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.type === 'page' && item.page ? (
+                        <span className="capitalize">{item.page.template || 'default'}</span>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">
+                      {item.type === 'page' && item.page ? (
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{item.page.slug}</code>
+                      ) : (
+                        <span>—</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1108,6 +1199,52 @@ export function PageManager({ currentUser }: PageManagerProps) {
           onRestore={handleVersionRestore}
         />
       )}
+
+      {/* Dialog de Criar Pasta */}
+      <Dialog open={createFolderDialog} onOpenChange={setCreateFolderDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Nova Pasta</DialogTitle>
+            <DialogDescription>
+              Digite o nome da pasta{currentPath ? ` dentro de "${currentPath}"` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="folder-name">Nome da Pasta</Label>
+              <Input
+                id="folder-name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Digite o nome da pasta..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    confirmCreateFolder();
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCreateFolderDialog(false);
+                setNewFolderName('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={confirmCreateFolder}>
+              <FolderPlus className="w-4 h-4 mr-2" />
+              Criar Pasta
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

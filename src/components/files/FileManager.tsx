@@ -23,9 +23,11 @@ import {
   Move,
   FileEdit,
   History,
-  Lock
+  Lock,
+  Info
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, VisuallyHidden } from '../ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../ui/sheet';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import {
@@ -45,12 +47,13 @@ import { FolderNavigator } from '../navigation/FolderNavigator';
 import { NewItemMenu } from './NewItemMenu';
 import { TextEditor } from './TextEditor';
 import { FileListView } from './FileListView';
-import { Grid3x3, List, LayoutGrid } from 'lucide-react';
+import { Grid3x3, List, LayoutGrid, Sparkles } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { LinkManagementService } from '../../services/LinkManagementService';
 import { UploadConfirmDialog, UploadConfirmMultipleDialog } from '../common/UploadConfirmDialog';
 import { downloadFile, downloadFolder, prepareFolderStructure } from '../../utils/download';
 import { StorageQuotaService } from '../../services/StorageQuotaService';
+import { FileImportOptimizer, ImportedFile } from './FileImportOptimizer';
 
 interface FileItem {
   id: string;
@@ -72,6 +75,7 @@ const ALLOWED_FILE_TYPES = [
   ...ALLOWED_IMAGE_TYPES,
   'application/pdf',
   'text/plain',
+  'text/html',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ];
@@ -98,6 +102,7 @@ export function FileManager() {
   const [propertiesFile, setPropertiesFile] = useState<FileItem | null>(null);
   const [showProperties, setShowProperties] = useState(false);
   const [showFolderNavigator, setShowFolderNavigator] = useState(false);
+  const [showStorageStats, setShowStorageStats] = useState(false);
   
   // New states for enhanced features
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -109,6 +114,9 @@ export function FileManager() {
   const [showUploadConfirmMultiple, setShowUploadConfirmMultiple] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<Array<{ file: globalThis.File; data: FileItem }>>([]);
   const [conflictingItems, setConflictingItems] = useState<Array<{ name: string; type: string }>>([]);
+  
+  // Import optimizer state
+  const [showImportOptimizer, setShowImportOptimizer] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -772,6 +780,75 @@ export function FileManager() {
     downloadFolder(folderStructure);
   };
 
+  const handleImportOptimizedFiles = (importedFiles: ImportedFile[]) => {
+    const newFiles: FileItem[] = [];
+    
+    importedFiles.forEach(imported => {
+      // Verificar se já existe
+      const existingPath = imported.path === '/' ? `/${imported.name}` : `${imported.path}/${imported.name}`;
+      const existing = files.find(f => f.path === existingPath);
+      
+      if (existing) {
+        toast.warning(`Arquivo ${imported.name} já existe e será sobrescrito`);
+      }
+      
+      // Converter conteúdo para URL
+      let url: string;
+      if (typeof imported.content === 'string') {
+        url = imported.content;
+      } else {
+        // Converter ArrayBuffer para base64
+        const base64 = btoa(
+          new Uint8Array(imported.content).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            ''
+          )
+        );
+        url = `data:${imported.mimeType};base64,${base64}`;
+      }
+      
+      const newFile: FileItem = {
+        id: existing?.id || Date.now().toString() + Math.random(),
+        name: imported.name,
+        type: 'file',
+        path: existingPath,
+        parent: imported.path,
+        size: imported.size,
+        url: url,
+        mimeType: imported.mimeType,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        modifiedAt: new Date().toISOString()
+      };
+      
+      newFiles.push(newFile);
+      
+      // Criar link automático
+      LinkManagementService.createLinkForResource({
+        title: imported.name,
+        slug: imported.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, ''),
+        resourceType: 'file',
+        resourceId: newFile.id,
+        folder: imported.path,
+        description: `Arquivo importado: ${imported.name}${imported.optimized ? ' (otimizado)' : ''}`,
+        metadata: {
+          mimeType: imported.mimeType,
+          fileSize: imported.size,
+          optimized: imported.optimized
+        }
+      });
+    });
+    
+    // Remover arquivos existentes que serão sobrescritos
+    const updatedFiles = files.filter(f => 
+      !newFiles.some(nf => nf.path === f.path)
+    );
+    
+    // Adicionar novos arquivos
+    saveFiles([...updatedFiles, ...newFiles]);
+    
+    toast.success(`${importedFiles.length} arquivo(s) importado(s) com sucesso!`);
+  };
+
   const handleOpenFolder = (folder: FileItem) => {
     setCurrentPath(folder.path);
     toast.info(`Navegando para: ${folder.path}`);
@@ -787,10 +864,27 @@ export function FileManager() {
     setShowImageEditor(true);
   };
 
-  const handleOpenTextFile = (item: FileItem) => {
+  const handleOpenTextFile = async (item: FileItem) => {
+    let content = '';
+    
+    // Se a URL é um blob, tentar ler o conteúdo
+    if (item.url?.startsWith('blob:')) {
+      try {
+        const response = await fetch(item.url);
+        content = await response.text();
+      } catch (error) {
+        console.error('Erro ao ler blob:', error);
+        toast.error('Não foi possível ler o conteúdo do arquivo. O arquivo pode ter expirado.');
+        return;
+      }
+    } else {
+      // Para outros casos, usar a URL diretamente (pode conter o conteúdo)
+      content = item.url || '';
+    }
+    
     setEditingTextFile({
       ...item,
-      content: item.url || '' // URL field stores text content
+      content
     });
     setShowTextEditor(true);
   };
@@ -800,7 +894,7 @@ export function FileManager() {
       handleOpenFolder(item);
     } else if (isImage(item)) {
       handleViewImage(item);
-    } else if (item.mimeType === 'text/plain' || item.name.endsWith('.txt')) {
+    } else if (item.mimeType === 'text/plain' || item.mimeType === 'text/html' || item.name.endsWith('.txt') || item.name.endsWith('.html')) {
       handleOpenTextFile(item);
     } else {
       // Other file types - just show a message
@@ -913,6 +1007,14 @@ export function FileManager() {
             {showFolderNavigator ? 'Ocultar' : 'Mostrar'} Navegador
           </Button>
           
+          <Button 
+            variant="outline" 
+            onClick={() => setShowStorageStats(!showStorageStats)}
+          >
+            <Info className="w-4 h-4 mr-2" />
+            Propriedades
+          </Button>
+          
           {/* View Mode Toggle */}
           <div className="flex border rounded-lg overflow-hidden">
             <Button
@@ -939,10 +1041,11 @@ export function FileManager() {
             onNewPage={handleNewPage}
           />
           
-          <div>
+          <div className="flex gap-2">
             <Button 
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
+              variant="outline"
             >
               <Upload className="w-4 h-4 mr-2" />
               {isUploading ? 'Enviando...' : 'Upload'}
@@ -955,6 +1058,13 @@ export function FileManager() {
               onChange={handleFileUpload}
               accept={ALLOWED_FILE_TYPES.join(',')}
             />
+            
+            <Button 
+              onClick={() => setShowImportOptimizer(true)}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Import Inteligente
+            </Button>
           </div>
         </div>
       </div>
@@ -1208,26 +1318,6 @@ export function FileManager() {
           </p>
         </div>
       )}
-
-      {/* Storage Info */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-2xl font-bold text-indigo-600">{totalFiles}</p>
-              <p className="text-sm text-gray-600">Arquivos</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-indigo-600">{totalFolders}</p>
-              <p className="text-sm text-gray-600">Pastas</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-indigo-600">{formatFileSize(totalSize)}</p>
-              <p className="text-sm text-gray-600">Armazenado</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* New Folder Dialog */}
       <Dialog open={showNewFolder} onOpenChange={setShowNewFolder}>
@@ -1496,6 +1586,118 @@ export function FileManager() {
           }}
         />
       )}
+
+      {/* Storage Statistics Sheet */}
+      <Sheet open={showStorageStats} onOpenChange={setShowStorageStats}>
+        <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Info className="w-5 h-5 text-indigo-600" />
+              Propriedades do Gerenciador
+            </SheetTitle>
+            <SheetDescription>
+              Informações gerais sobre os arquivos e armazenamento
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-6">
+            {/* Statistics Grid */}
+            <div className="grid grid-cols-1 gap-4">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                        <File className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Total de Arquivos</p>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalFiles}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                        <Folder className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Total de Pastas</p>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalFolders}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                        <Upload className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Armazenamento Total</p>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFileSize(totalSize)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Additional Information */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Informações Adicionais</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Pasta Atual</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{currentPath}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Arquivos na Pasta</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{currentFiles.filter(f => f.type === 'file').length}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Subpastas</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{currentFiles.filter(f => f.type === 'folder').length}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Storage Quota Info */}
+            <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border-indigo-200 dark:border-indigo-800">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-3">
+                  <Info className="w-5 h-5 text-indigo-600 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Dica de Armazenamento</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Os arquivos são armazenados localmente no navegador. Para backup, recomendamos fazer download regular das pastas importantes.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Smart File Import Optimizer */}
+      <FileImportOptimizer
+        open={showImportOptimizer}
+        onClose={() => setShowImportOptimizer(false)}
+        onImport={handleImportOptimizedFiles}
+        currentPath={currentPath}
+      />
     </div>
   );
 }

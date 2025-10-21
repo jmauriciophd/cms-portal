@@ -26,12 +26,12 @@ interface FileData {
   name: string;
   type: 'file' | 'folder';
   path: string;
-  parentId: string | null;
+  parent?: string;
   size?: number;
   mimeType?: string;
   url?: string;
   createdAt: string;
-  updatedAt: string;
+  modifiedAt?: string;
   protected?: boolean;
 }
 
@@ -66,9 +66,9 @@ export function CopyFileDialog({ file, allFiles, onComplete, onCancel }: FileOpe
         id: `file-${Date.now()}`,
         name: newName,
         path: `${destinationPath}/${newName}`,
-        parentId: selectedFolderId || null,
+        parent: selectedFolderId === '' ? '/' : (destinationFolder?.path || '/'),
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        modifiedAt: new Date().toISOString()
       };
 
       const updatedFiles = [...allFiles, copiedFile];
@@ -197,9 +197,9 @@ export function MoveFileDialog({ file, allFiles, onComplete, onCancel }: FileOpe
       
       const movedFile: FileData = {
         ...file,
-        path: `${destinationPath}/${file.name}`,
-        parentId: selectedFolderId || null,
-        updatedAt: new Date().toISOString()
+        path: destinationPath === '/' ? `/${file.name}` : `${destinationPath}/${file.name}`,
+        parent: destinationPath,
+        modifiedAt: new Date().toISOString()
       };
 
       const updatedFiles = allFiles.map(f => f.id === file.id ? movedFile : f);
@@ -321,7 +321,7 @@ export function RenameFileDialog({ file, allFiles, onComplete, onCancel }: FileO
         ...file,
         name: newName,
         path: newPath,
-        updatedAt: new Date().toISOString()
+        modifiedAt: new Date().toISOString()
       };
 
       const updatedFiles = allFiles.map(f => f.id === file.id ? renamedFile : f);

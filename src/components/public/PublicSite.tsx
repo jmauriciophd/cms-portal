@@ -48,6 +48,49 @@ interface MenuItem {
   id?: string;
 }
 
+interface HomeSection {
+  id: string;
+  type: 'hero' | 'features' | 'content' | 'gallery' | 'cta' | 'custom';
+  title: string;
+  subtitle?: string;
+  content?: string;
+  image?: string;
+  backgroundImage?: string;
+  link?: {
+    text: string;
+    url: string;
+    openInNewTab: boolean;
+  };
+  style?: {
+    backgroundColor?: string;
+    textColor?: string;
+    padding?: string;
+    alignment?: 'left' | 'center' | 'right';
+  };
+  enabled: boolean;
+  order: number;
+  customHTML?: string;
+}
+
+interface HomePage {
+  id: string;
+  siteId?: string;
+  title: string;
+  description: string;
+  sections: HomeSection[];
+  seo: {
+    metaTitle: string;
+    metaDescription: string;
+    keywords: string[];
+  };
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    fontFamily: string;
+  };
+  updatedAt: string;
+}
+
 export function PublicSite() {
   const navigate = useNavigate();
   const [articles, setArticles] = useState<Article[]>([]);
@@ -58,10 +101,23 @@ export function PublicSite() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [homePage, setHomePage] = useState<HomePage | null>(null);
 
   useEffect(() => {
     loadContent();
+    loadHomePage();
   }, []);
+
+  const loadHomePage = () => {
+    const stored = localStorage.getItem('homepage');
+    if (stored) {
+      try {
+        setHomePage(JSON.parse(stored));
+      } catch (error) {
+        console.error('Erro ao carregar página inicial:', error);
+      }
+    }
+  };
 
   const loadContent = () => {
     // Load published articles
@@ -160,85 +216,157 @@ export function PublicSite() {
     <>
       <SEOHead 
         config={{
-          title: 'Portal CMS - Notícias e Conteúdo',
-          description: 'Fique por dentro das últimas novidades e atualizações do nosso portal',
-          keywords: 'notícias, portal, conteúdo, atualizações',
+          title: homePage?.seo.metaTitle || 'Portal CMS - Notícias e Conteúdo',
+          description: homePage?.seo.metaDescription || 'Fique por dentro das últimas novidades e atualizações do nosso portal',
+          keywords: homePage?.seo.keywords.join(', ') || 'notícias, portal, conteúdo, atualizações',
           robots: 'index, follow',
           ogType: 'website',
-          ogTitle: 'Portal CMS - Seu Portal de Notícias',
-          ogDescription: 'Fique por dentro das últimas novidades e atualizações',
+          ogTitle: homePage?.title || 'Portal CMS - Seu Portal de Notícias',
+          ogDescription: homePage?.description || 'Fique por dentro das últimas novidades e atualizações',
           twitterCard: 'summary_large_image',
           schemaType: 'WebPage'
         }}
       />
       <div className="space-y-8">
-        {/* Hero */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl p-8 md:p-12">
-        <h1 className="text-3xl md:text-4xl mb-4">Portal de Notícias</h1>
-        <p className="text-lg opacity-90 mb-6">
-          Fique por dentro das últimas novidades e atualizações
-        </p>
-        <div className="relative max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 opacity-70" />
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar notícias..."
-            className="pl-10 bg-white/20 border-white/30 text-white placeholder:text-white/70"
-          />
-        </div>
-      </div>
+        {/* Custom Sections from HomePage Editor */}
+        {homePage && homePage.sections
+          .filter(s => s.enabled)
+          .sort((a, b) => a.order - b.order)
+          .map((section) => (
+            <div
+              key={section.id}
+              className="rounded-xl overflow-hidden"
+              style={{
+                backgroundColor: section.style?.backgroundColor,
+                color: section.style?.textColor,
+                padding: section.style?.padding,
+                textAlign: section.style?.alignment as any,
+                backgroundImage: section.backgroundImage ? `url(${section.backgroundImage})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            >
+              {section.type !== 'custom' ? (
+                <div className={section.style?.alignment === 'center' ? 'text-center' : ''}>
+                  {section.image && (
+                    <img
+                      src={section.image}
+                      alt={section.title}
+                      className={`mb-4 rounded ${
+                        section.style?.alignment === 'center' ? 'max-w-md mx-auto' : 'max-w-md'
+                      }`}
+                    />
+                  )}
+                  <h1 className="text-3xl md:text-4xl mb-4">{section.title}</h1>
+                  {section.subtitle && (
+                    <p className="text-xl opacity-90 mb-4">{section.subtitle}</p>
+                  )}
+                  {section.content && (
+                    <p className={`mb-6 ${section.style?.alignment === 'center' ? 'max-w-2xl mx-auto' : 'max-w-2xl'}`}>
+                      {section.content}
+                    </p>
+                  )}
+                  
+                  {/* Search box for hero sections */}
+                  {section.type === 'hero' && (
+                    <div className={`relative max-w-xl ${section.style?.alignment === 'center' ? 'mx-auto' : ''}`}>
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 opacity-70" />
+                      <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar notícias..."
+                        className="pl-10 bg-white/20 border-white/30 placeholder:text-white/70"
+                        style={{ color: section.style?.textColor }}
+                      />
+                    </div>
+                  )}
+                  
+                  {section.link && (
+                    <a
+                      href={section.link.url}
+                      target={section.link.openInNewTab ? '_blank' : '_self'}
+                      rel="noopener noreferrer"
+                      className="inline-block px-6 py-3 bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition-colors mt-4"
+                    >
+                      {section.link.text}
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: section.customHTML || '' }} />
+              )}
+            </div>
+          ))}
 
-      {/* Articles Grid */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Últimas Notícias</h2>
-        {filteredArticles.length === 0 ? (
-          <Card className="p-12 text-center">
-            <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">
-              {searchTerm ? 'Nenhuma notícia encontrada' : 'Nenhuma notícia publicada ainda'}
+        {/* Default Hero if no custom homepage */}
+        {!homePage && (
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl p-8 md:p-12">
+            <h1 className="text-3xl md:text-4xl mb-4">Portal de Notícias</h1>
+            <p className="text-lg opacity-90 mb-6">
+              Fique por dentro das últimas novidades e atualizações
             </p>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredArticles.map(article => (
-              <Card
-                key={article.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => openArticle(article)}
-              >
-                <CardHeader>
-                  <div className="flex gap-2 mb-2 flex-wrap">
-                    {article.categories?.map(cat => (
-                      <Badge key={cat} variant="secondary" className="text-xs">
-                        {cat}
-                      </Badge>
-                    ))}
-                  </div>
-                  <CardTitle className="line-clamp-2">{article.title}</CardTitle>
-                  <CardDescription className="line-clamp-3">
-                    {article.summary}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <User className="w-4 h-4" />
-                      <span>{article.author}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {new Date(article.publishedDate || article.createdAt).toLocaleDateString('pt-BR')}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            <div className="relative max-w-xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 opacity-70" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar notícias..."
+                className="pl-10 bg-white/20 border-white/30 text-white placeholder:text-white/70"
+              />
+            </div>
           </div>
         )}
-      </div>
+
+        {/* Articles Grid */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Últimas Notícias</h2>
+          {filteredArticles.length === 0 ? (
+            <Card className="p-12 text-center">
+              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">
+                {searchTerm ? 'Nenhuma notícia encontrada' : 'Nenhuma notícia publicada ainda'}
+              </p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredArticles.map(article => (
+                <Card
+                  key={article.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => openArticle(article)}
+                >
+                  <CardHeader>
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {article.categories?.map(cat => (
+                        <Badge key={cat} variant="secondary" className="text-xs">
+                          {cat}
+                        </Badge>
+                      ))}
+                    </div>
+                    <CardTitle className="line-clamp-2">{article.title}</CardTitle>
+                    <CardDescription className="line-clamp-3">
+                      {article.summary}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <User className="w-4 h-4" />
+                        <span>{article.author}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          {new Date(article.publishedDate || article.createdAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

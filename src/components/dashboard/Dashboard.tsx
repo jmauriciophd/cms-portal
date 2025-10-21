@@ -17,7 +17,9 @@ import {
   Tag as TagIcon,
   Layers,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Globe,
+  Home
 } from 'lucide-react';
 import { PageManager } from '../pages/PageManager';
 import { FileManager } from '../files/FileManager';
@@ -34,13 +36,15 @@ import { CustomFieldsManager } from '../content/CustomFieldsManager';
 import { TaxonomyManager } from '../taxonomy/TaxonomyManager';
 import { HierarchicalBuilderDemo } from '../pages/HierarchicalBuilderDemo';
 import { GlobalSearch } from './GlobalSearch';
+import { HomePageEditor } from '../pages/HomePageEditor';
+import { MultisiteManager } from '../multisite/MultisiteManager';
 
 interface DashboardProps {
   currentUser: any;
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder' | 'homepage' | 'multisites';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -65,7 +69,8 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
       roles: ['admin', 'editor'],
       children: [
         { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
-        { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] }
+        { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] },
+        { id: 'homepage', icon: Home, label: 'Página Inicial', roles: ['admin', 'editor'] }
       ]
     },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },
@@ -75,6 +80,7 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
     { id: 'lists', icon: List, label: 'Listas', roles: ['admin', 'editor'] },
     { id: 'customFields', icon: Database, label: 'Campos Personalizados', roles: ['admin', 'editor'] },
     { id: 'snippets', icon: Code, label: 'Snippets', roles: ['admin', 'editor'] },
+    { id: 'multisites', icon: Globe, label: 'Multisites', roles: ['admin'] },
     { id: 'settings', icon: Settings, label: 'Configurações', roles: ['admin'] },
   ];
 
@@ -130,6 +136,10 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
         return <TemplateManager onEditingChange={(isEditing) => setSidebarCollapsed(isEditing)} />;
       case 'settings':
         return <SystemSettings currentUser={currentUser} />;
+      case 'homepage':
+        return <HomePageEditor />;
+      case 'multisites':
+        return <MultisiteManager />;
       default:
         return <DashboardHome currentUser={currentUser} onNavigate={setCurrentView} />;
     }

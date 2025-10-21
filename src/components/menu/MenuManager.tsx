@@ -17,7 +17,10 @@ import {
   Eye,
   EyeOff,
   Copy,
-  FileText
+  FileText,
+  MapPin,
+  Layout,
+  Settings
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -45,6 +48,29 @@ interface MenuConfig {
   createdAt: string;
   updatedAt: string;
   associatedPages?: string[];
+  position?: MenuPosition;
+  displaySettings?: MenuDisplaySettings;
+}
+
+type MenuPositionType = 'header' | 'top' | 'right' | 'left' | 'footer' | 'sidebar' | 'custom';
+
+interface MenuPosition {
+  type: MenuPositionType;
+  customPosition?: string;
+  alignment?: 'start' | 'center' | 'end';
+  sticky?: boolean;
+}
+
+interface MenuDisplaySettings {
+  showOnHomepage?: boolean;
+  specificPages?: string[];
+  excludedPages?: string[];
+  showOnAllPages?: boolean;
+  responsive?: {
+    desktop?: boolean;
+    tablet?: boolean;
+    mobile?: boolean;
+  };
 }
 
 export function MenuManager() {
@@ -53,6 +79,7 @@ export function MenuManager() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showNewMenuDialog, setShowNewMenuDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editingPath, setEditingPath] = useState<number[]>([]);
   const [importJson, setImportJson] = useState('');
@@ -228,7 +255,18 @@ export function MenuManager() {
       items: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      associatedPages: []
+      associatedPages: [],
+      position: {
+        type: 'header'
+      },
+      displaySettings: {
+        showOnAllPages: true,
+        responsive: {
+          desktop: true,
+          tablet: true,
+          mobile: true
+        }
+      }
     };
 
     const updatedMenus = [...menus, newMenu];
@@ -783,6 +821,14 @@ export function MenuManager() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setShowSettingsDialog(true)}
+                title="Configurações de exibição e posicionamento"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => duplicateMenu(currentMenu.id)}
                 title="Duplicar menu"
               >
@@ -1134,6 +1180,595 @@ export function MenuManager() {
               className="flex-1"
             >
               Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Menu Settings Dialog - Position and Display */}
+      <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Configurações de Posicionamento e Exibição
+            </DialogTitle>
+            <DialogDescription>
+              Defina onde e como o menu "{currentMenu?.name}" será exibido no site
+            </DialogDescription>
+          </DialogHeader>
+
+          {currentMenu && (
+            <Tabs defaultValue="position" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="position" className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Posicionamento
+                </TabsTrigger>
+                <TabsTrigger value="display" className="flex items-center gap-2">
+                  <Layout className="w-4 h-4" />
+                  Exibição
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Position Tab */}
+              <TabsContent value="position" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Posição do Menu</CardTitle>
+                    <CardDescription>
+                      Escolha onde o menu será posicionado na página
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>Tipo de Posicionamento</Label>
+                      <Select
+                        value={currentMenu.position?.type || 'header'}
+                        onValueChange={(value: MenuPositionType) => {
+                          const updated = menus.map(m => 
+                            m.id === currentMenu.id
+                              ? { 
+                                  ...m, 
+                                  position: { 
+                                    ...m.position, 
+                                    type: value 
+                                  } 
+                                }
+                              : m
+                          );
+                          saveMenus(updated);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="header">
+                            <div className="flex items-center gap-2">
+                              <Layout className="w-4 h-4" />
+                              Cabeçalho (Header)
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="top">
+                            <div className="flex items-center gap-2">
+                              <Layout className="w-4 h-4" />
+                              Topo da Página
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="right">
+                            <div className="flex items-center gap-2">
+                              <Layout className="w-4 h-4" />
+                              Lateral Direita
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="left">
+                            <div className="flex items-center gap-2">
+                              <Layout className="w-4 h-4" />
+                              Lateral Esquerda
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="footer">
+                            <div className="flex items-center gap-2">
+                              <Layout className="w-4 h-4" />
+                              Rodapé (Footer)
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="sidebar">
+                            <div className="flex items-center gap-2">
+                              <Layout className="w-4 h-4" />
+                              Barra Lateral (Sidebar)
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="custom">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4" />
+                              Posição Personalizada
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {currentMenu.position?.type === 'header' && 'Menu será exibido no cabeçalho principal do site'}
+                        {currentMenu.position?.type === 'top' && 'Menu será fixado no topo da página'}
+                        {currentMenu.position?.type === 'right' && 'Menu será exibido na lateral direita'}
+                        {currentMenu.position?.type === 'left' && 'Menu será exibido na lateral esquerda'}
+                        {currentMenu.position?.type === 'footer' && 'Menu será exibido no rodapé do site'}
+                        {currentMenu.position?.type === 'sidebar' && 'Menu será exibido em uma barra lateral'}
+                        {currentMenu.position?.type === 'custom' && 'Defina uma posição personalizada abaixo'}
+                      </p>
+                    </div>
+
+                    {currentMenu.position?.type === 'custom' && (
+                      <div>
+                        <Label>Posição Personalizada</Label>
+                        <Input
+                          value={currentMenu.position?.customPosition || ''}
+                          onChange={(e) => {
+                            const updated = menus.map(m => 
+                              m.id === currentMenu.id
+                                ? { 
+                                    ...m, 
+                                    position: { 
+                                      ...m.position!, 
+                                      customPosition: e.target.value 
+                                    } 
+                                  }
+                                : m
+                            );
+                            saveMenus(updated);
+                          }}
+                          placeholder="Ex: #menu-container, .custom-menu, etc."
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Seletor CSS ou ID onde o menu será renderizado
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <Label>Alinhamento</Label>
+                      <Select
+                        value={currentMenu.position?.alignment || 'start'}
+                        onValueChange={(value: 'start' | 'center' | 'end') => {
+                          const updated = menus.map(m => 
+                            m.id === currentMenu.id
+                              ? { 
+                                  ...m, 
+                                  position: { 
+                                    ...m.position!, 
+                                    alignment: value 
+                                  } 
+                                }
+                              : m
+                          );
+                          saveMenus(updated);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="start">Início (Esquerda)</SelectItem>
+                          <SelectItem value="center">Centro</SelectItem>
+                          <SelectItem value="end">Fim (Direita)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                      <Switch
+                        checked={currentMenu.position?.sticky || false}
+                        onCheckedChange={(checked) => {
+                          const updated = menus.map(m => 
+                            m.id === currentMenu.id
+                              ? { 
+                                  ...m, 
+                                  position: { 
+                                    ...m.position!, 
+                                    sticky: checked 
+                                  } 
+                                }
+                              : m
+                          );
+                          saveMenus(updated);
+                        }}
+                      />
+                      <div>
+                        <Label>Menu Fixo (Sticky)</Label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          O menu permanecerá visível durante a rolagem da página
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Preview Visual */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Preview de Posicionamento</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50">
+                      <div className="bg-white rounded shadow-sm overflow-hidden">
+                        {/* Header */}
+                        {currentMenu.position?.type === 'header' && (
+                          <div className="bg-indigo-600 text-white p-3 text-center">
+                            <Badge variant="secondary">Menu: {currentMenu.name}</Badge>
+                          </div>
+                        )}
+                        
+                        {/* Top */}
+                        {currentMenu.position?.type === 'top' && (
+                          <div className="bg-indigo-500 text-white p-2 text-center text-sm">
+                            <Badge variant="secondary">Menu: {currentMenu.name}</Badge>
+                          </div>
+                        )}
+
+                        {/* Content Area */}
+                        <div className="flex">
+                          {/* Left Sidebar */}
+                          {(currentMenu.position?.type === 'left' || currentMenu.position?.type === 'sidebar') && (
+                            <div className="w-48 bg-gray-200 p-3 text-center">
+                              <Badge variant="secondary" className="text-xs">Menu: {currentMenu.name}</Badge>
+                            </div>
+                          )}
+
+                          {/* Main Content */}
+                          <div className="flex-1 p-6 text-center text-gray-400">
+                            Conteúdo da Página
+                          </div>
+
+                          {/* Right Sidebar */}
+                          {currentMenu.position?.type === 'right' && (
+                            <div className="w-48 bg-gray-200 p-3 text-center">
+                              <Badge variant="secondary" className="text-xs">Menu: {currentMenu.name}</Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Footer */}
+                        {currentMenu.position?.type === 'footer' && (
+                          <div className="bg-gray-800 text-white p-3 text-center">
+                            <Badge variant="secondary">Menu: {currentMenu.name}</Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Display Tab */}
+              <TabsContent value="display" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Controle de Exibição</CardTitle>
+                    <CardDescription>
+                      Configure em quais páginas o menu será exibido
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center gap-3 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                      <Switch
+                        checked={currentMenu.displaySettings?.showOnAllPages || false}
+                        onCheckedChange={(checked) => {
+                          const updated = menus.map(m => 
+                            m.id === currentMenu.id
+                              ? { 
+                                  ...m, 
+                                  displaySettings: { 
+                                    ...m.displaySettings!, 
+                                    showOnAllPages: checked,
+                                    specificPages: checked ? [] : m.displaySettings?.specificPages,
+                                    excludedPages: []
+                                  } 
+                                }
+                              : m
+                          );
+                          saveMenus(updated);
+                        }}
+                      />
+                      <div className="flex-1">
+                        <Label>Exibir em Todas as Páginas</Label>
+                        <p className="text-xs text-gray-600 mt-1">
+                          O menu será exibido globalmente em todo o site
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                      <Switch
+                        checked={currentMenu.displaySettings?.showOnHomepage || false}
+                        onCheckedChange={(checked) => {
+                          const updated = menus.map(m => 
+                            m.id === currentMenu.id
+                              ? { 
+                                  ...m, 
+                                  displaySettings: { 
+                                    ...m.displaySettings!, 
+                                    showOnHomepage: checked 
+                                  } 
+                                }
+                              : m
+                          );
+                          saveMenus(updated);
+                        }}
+                      />
+                      <div className="flex-1">
+                        <Label>Exibir na Página Inicial</Label>
+                        <p className="text-xs text-gray-600 mt-1">
+                          O menu será visível na home/página inicial do site
+                        </p>
+                      </div>
+                    </div>
+
+                    {!currentMenu.displaySettings?.showOnAllPages && (
+                      <div>
+                        <Label>Páginas Específicas</Label>
+                        <div className="mt-2 space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                          {pages.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                              Nenhuma página criada ainda
+                            </p>
+                          ) : (
+                            pages.map(page => {
+                              const isIncluded = currentMenu.displaySettings?.specificPages?.includes(page.id) || false;
+                              return (
+                                <div key={page.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                                  <Switch
+                                    checked={isIncluded}
+                                    onCheckedChange={(checked) => {
+                                      const updated = menus.map(m => {
+                                        if (m.id === currentMenu.id) {
+                                          const specificPages = m.displaySettings?.specificPages || [];
+                                          return {
+                                            ...m,
+                                            displaySettings: {
+                                              ...m.displaySettings!,
+                                              specificPages: checked
+                                                ? [...specificPages, page.id]
+                                                : specificPages.filter(id => id !== page.id)
+                                            }
+                                          };
+                                        }
+                                        return m;
+                                      });
+                                      saveMenus(updated);
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-sm">{page.title}</p>
+                                    <p className="text-xs text-gray-500">{page.slug || page.id}</p>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Selecione as páginas onde o menu deve aparecer
+                        </p>
+                      </div>
+                    )}
+
+                    {currentMenu.displaySettings?.showOnAllPages && (
+                      <div>
+                        <Label>Páginas Excluídas</Label>
+                        <div className="mt-2 space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                          {pages.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                              Nenhuma página criada ainda
+                            </p>
+                          ) : (
+                            pages.map(page => {
+                              const isExcluded = currentMenu.displaySettings?.excludedPages?.includes(page.id) || false;
+                              return (
+                                <div key={page.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                                  <Switch
+                                    checked={isExcluded}
+                                    onCheckedChange={(checked) => {
+                                      const updated = menus.map(m => {
+                                        if (m.id === currentMenu.id) {
+                                          const excludedPages = m.displaySettings?.excludedPages || [];
+                                          return {
+                                            ...m,
+                                            displaySettings: {
+                                              ...m.displaySettings!,
+                                              excludedPages: checked
+                                                ? [...excludedPages, page.id]
+                                                : excludedPages.filter(id => id !== page.id)
+                                            }
+                                          };
+                                        }
+                                        return m;
+                                      });
+                                      saveMenus(updated);
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-sm">{page.title}</p>
+                                    <p className="text-xs text-gray-500">{page.slug || page.id}</p>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Selecione páginas onde o menu NÃO deve aparecer
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Responsive Settings */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Configurações Responsivas</CardTitle>
+                    <CardDescription>
+                      Controle a exibição do menu em diferentes dispositivos
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="flex flex-col items-center gap-2 p-4 border rounded-lg">
+                        <Layout className="w-8 h-8 text-gray-600" />
+                        <Label className="text-center">Desktop</Label>
+                        <Switch
+                          checked={currentMenu.displaySettings?.responsive?.desktop !== false}
+                          onCheckedChange={(checked) => {
+                            const updated = menus.map(m => 
+                              m.id === currentMenu.id
+                                ? { 
+                                    ...m, 
+                                    displaySettings: { 
+                                      ...m.displaySettings!, 
+                                      responsive: {
+                                        ...m.displaySettings?.responsive,
+                                        desktop: checked
+                                      }
+                                    } 
+                                  }
+                                : m
+                            );
+                            saveMenus(updated);
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex flex-col items-center gap-2 p-4 border rounded-lg">
+                        <Layout className="w-6 h-6 text-gray-600" />
+                        <Label className="text-center">Tablet</Label>
+                        <Switch
+                          checked={currentMenu.displaySettings?.responsive?.tablet !== false}
+                          onCheckedChange={(checked) => {
+                            const updated = menus.map(m => 
+                              m.id === currentMenu.id
+                                ? { 
+                                    ...m, 
+                                    displaySettings: { 
+                                      ...m.displaySettings!, 
+                                      responsive: {
+                                        ...m.displaySettings?.responsive,
+                                        tablet: checked
+                                      }
+                                    } 
+                                  }
+                                : m
+                            );
+                            saveMenus(updated);
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex flex-col items-center gap-2 p-4 border rounded-lg">
+                        <Layout className="w-4 h-4 text-gray-600" />
+                        <Label className="text-center">Mobile</Label>
+                        <Switch
+                          checked={currentMenu.displaySettings?.responsive?.mobile !== false}
+                          onCheckedChange={(checked) => {
+                            const updated = menus.map(m => 
+                              m.id === currentMenu.id
+                                ? { 
+                                    ...m, 
+                                    displaySettings: { 
+                                      ...m.displaySettings!, 
+                                      responsive: {
+                                        ...m.displaySettings?.responsive,
+                                        mobile: checked
+                                      }
+                                    } 
+                                  }
+                                : m
+                            );
+                            saveMenus(updated);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Summary Card */}
+                <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Eye className="w-5 h-5" />
+                      Resumo das Configurações
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Posição:</span>
+                      <span className="ml-2 font-medium">
+                        {currentMenu.position?.type === 'header' && 'Cabeçalho'}
+                        {currentMenu.position?.type === 'top' && 'Topo'}
+                        {currentMenu.position?.type === 'right' && 'Lateral Direita'}
+                        {currentMenu.position?.type === 'left' && 'Lateral Esquerda'}
+                        {currentMenu.position?.type === 'footer' && 'Rodapé'}
+                        {currentMenu.position?.type === 'sidebar' && 'Sidebar'}
+                        {currentMenu.position?.type === 'custom' && `Personalizada (${currentMenu.position.customPosition})`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Alinhamento:</span>
+                      <span className="ml-2 font-medium capitalize">
+                        {currentMenu.position?.alignment || 'start'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Menu Fixo:</span>
+                      <span className="ml-2 font-medium">
+                        {currentMenu.position?.sticky ? 'Sim' : 'Não'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Exibição:</span>
+                      <span className="ml-2 font-medium">
+                        {currentMenu.displaySettings?.showOnAllPages 
+                          ? `Todas as páginas${currentMenu.displaySettings.excludedPages?.length ? ` (${currentMenu.displaySettings.excludedPages.length} excluídas)` : ''}`
+                          : `${currentMenu.displaySettings?.specificPages?.length || 0} páginas específicas`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Página Inicial:</span>
+                      <span className="ml-2 font-medium">
+                        {currentMenu.displaySettings?.showOnHomepage ? 'Sim' : 'Não'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Dispositivos:</span>
+                      <span className="ml-2">
+                        {currentMenu.displaySettings?.responsive?.desktop !== false && (
+                          <Badge variant="secondary" className="mr-1">Desktop</Badge>
+                        )}
+                        {currentMenu.displaySettings?.responsive?.tablet !== false && (
+                          <Badge variant="secondary" className="mr-1">Tablet</Badge>
+                        )}
+                        {currentMenu.displaySettings?.responsive?.mobile !== false && (
+                          <Badge variant="secondary">Mobile</Badge>
+                        )}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          )}
+
+          <div className="flex gap-2 pt-4 border-t mt-4">
+            <Button
+              onClick={() => {
+                setShowSettingsDialog(false);
+                toast.success('Configurações salvas!');
+              }}
+              className="flex-1"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Concluir
             </Button>
           </div>
         </DialogContent>

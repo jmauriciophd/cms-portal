@@ -497,7 +497,7 @@ export function SnippetManager({ currentUser }: SnippetManagerProps) {
             <TabsContent value="code" className="mt-4">
               <Card>
                 <CardContent className="p-6">
-                  <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded overflow-auto">
+                  <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded overflow-x-auto whitespace-pre-wrap break-words max-w-full">
                     {previewSnippet?.content}
                   </pre>
                   <Button

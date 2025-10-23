@@ -3,9 +3,10 @@
  * Suporta aninhamento e estrutura pai-filho
  */
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DroppableContainer } from './DroppableContainer';
 import { hierarchyService } from '../../services/HierarchyService';
+import { TextFormattingToolbar } from './TextFormattingToolbar';
 
 export interface HierarchicalNode {
   id: string;
@@ -48,6 +49,68 @@ export function HierarchicalRenderNode({
   const isSelected = selectedNodeId === node.id;
   const canHaveChildren = hierarchyService.canHaveChildren(node.type);
   const hasSlots = hierarchyService.hasSlots(node.type);
+  
+  // Estados para edição inline de texto
+  const [isEditingText, setIsEditingText] = useState(false);
+  const [showTextToolbar, setShowTextToolbar] = useState(false);
+  const [toolbarPosition, setToolbarPosition] = useState({ x: 0, y: 0 });
+  const textElementRef = useRef<HTMLElement>(null);
+  
+  // Verifica se é um componente de texto
+  const isTextComponent = ['heading', 'paragraph', 'text'].includes(node.type);
+  
+  // Handler para clicar em texto e ativar edição inline
+  const handleTextClick = (e: React.MouseEvent) => {
+    if (!isPreview && isTextComponent) {
+      e.stopPropagation();
+      setIsEditingText(true);
+      setShowTextToolbar(true);
+      
+      // Calcular posição do toolbar
+      const rect = e.currentTarget.getBoundingClientRect();
+      setToolbarPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top
+      });
+      
+      // Selecionar o componente
+      onSelect(node.id);
+    }
+  };
+  
+  // Handler para atualizar texto
+  const handleTextChange = (e: React.FormEvent<HTMLElement>) => {
+    const newContent = e.currentTarget.textContent || '';
+    onUpdateNode(node.id, {
+      props: {
+        ...node.props,
+        content: newContent,
+        text: newContent
+      },
+      content: newContent
+    });
+  };
+  
+  // Handler para atualizar estilo via toolbar
+  const handleStyleChange = (property: string, value: string) => {
+    onUpdateNode(node.id, {
+      props: {
+        ...node.props,
+        [property]: value
+      }
+    });
+  };
+  
+  // Obter estilos atuais do texto
+  const getCurrentTextStyle = () => ({
+    fontFamily: node.props?.fontFamily,
+    fontSize: node.props?.fontSize,
+    fontWeight: node.props?.fontWeight,
+    textAlign: node.props?.textAlign,
+    color: node.props?.color,
+    fontStyle: node.props?.fontStyle,
+    textDecoration: node.props?.textDecoration
+  });
   
   // Renderiza o componente base
   const renderComponent = () => {
@@ -404,15 +467,68 @@ export function HierarchicalRenderNode({
       case 'heading':
         const HeadingTag = (node.props?.level || node.props?.tag || 'h2') as keyof JSX.IntrinsicElements;
         const headingContent = node.props?.content || node.content || node.props?.text || 'Heading';
-        return <HeadingTag {...combinedProps}>{headingContent}</HeadingTag>;
+        return (
+          <HeadingTag 
+            {...combinedProps}
+            ref={textElementRef as any}
+            contentEditable={!isPreview && isSelected}
+            suppressContentEditableWarning
+            onClick={handleTextClick}
+            onInput={handleTextChange}
+            onBlur={() => setIsEditingText(false)}
+            style={{
+              ...combinedProps.style,
+              cursor: !isPreview ? 'text' : 'default',
+              outline: isEditingText ? '2px solid #3b82f6' : 'none'
+            }}
+          >
+            {headingContent}
+          </HeadingTag>
+        );
       
       case 'paragraph':
         const paragraphContent = node.props?.content || node.content || node.props?.text || 'Paragraph text';
-        return <p {...combinedProps}>{paragraphContent}</p>;
+        return (
+          <p 
+            {...combinedProps}
+            ref={textElementRef as any}
+            contentEditable={!isPreview && isSelected}
+            suppressContentEditableWarning
+            onClick={handleTextClick}
+            onInput={handleTextChange}
+            onBlur={() => setIsEditingText(false)}
+            style={{
+              ...combinedProps.style,
+              cursor: !isPreview ? 'text' : 'default',
+              outline: isEditingText ? '2px solid #3b82f6' : 'none'
+            }}
+          >
+            {paragraphContent}
+          </p>
+        );
       
       case 'text':
         const textContent = node.props?.content || node.content || node.props?.text || 'Text';
-        return <span {...combinedProps}>{textContent}</span>;
+        return (
+          <span 
+            {...combinedProps}
+            ref={textElementRef as any}
+            contentEditable={!isPreview && isSelected}
+            suppressContentEditableWarning
+            onClick={handleTextClick}
+            onInput={handleTextChange}
+            onBlur={() => setIsEditingText(false)}
+            style={{
+              ...combinedProps.style,
+              cursor: !isPreview ? 'text' : 'default',
+              outline: isEditingText ? '2px solid #3b82f6' : 'none',
+              display: 'inline-block',
+              minWidth: '20px'
+            }}
+          >
+            {textContent}
+          </span>
+        );
       
       case 'button':
         const buttonContent = node.props?.text || node.content || 'Button';
@@ -599,20 +715,33 @@ export function HierarchicalRenderNode({
   
   // No modo edição, envolve com DroppableContainer
   return (
-    <DroppableContainer
-      node={node}
-      onDrop={onDrop}
-      onAddChild={onAddChild}
-      onRemove={onRemove}
-      onDuplicate={onDuplicate}
-      onSelect={onSelect}
-      isSelected={isSelected}
-      depth={depth}
-      index={index}
-      canReorder={depth > 0} // Não permite arrastar o nó raiz
-      showControls={!isPreview}
-    >
-      {renderComponent()}
-    </DroppableContainer>
+    <>
+      <DroppableContainer
+        node={node}
+        onDrop={onDrop}
+        onAddChild={onAddChild}
+        onRemove={onRemove}
+        onDuplicate={onDuplicate}
+        onSelect={onSelect}
+        isSelected={isSelected}
+        depth={depth}
+        index={index}
+        canReorder={depth > 0} // Não permite arrastar o nó raiz
+        showControls={!isPreview}
+      >
+        {renderComponent()}
+      </DroppableContainer>
+      
+      {/* Toolbar flutuante para texto */}
+      {isTextComponent && isSelected && (
+        <TextFormattingToolbar
+          position={toolbarPosition}
+          visible={showTextToolbar}
+          currentStyle={getCurrentTextStyle()}
+          onStyleChange={handleStyleChange}
+          onClose={() => setShowTextToolbar(false)}
+        />
+      )}
+    </>
   );
 }

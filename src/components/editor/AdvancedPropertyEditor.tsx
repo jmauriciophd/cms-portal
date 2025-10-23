@@ -14,6 +14,7 @@ import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { ScrollArea } from '../ui/scroll-area';
+import { UnitInput } from './UnitInput';
 import { 
   BaseComponentProperties,
   BoxShadowConfig,
@@ -105,20 +106,20 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Largura</Label>
-                      <Input
+                      <UnitInput
                         value={component.width || ''}
-                        onChange={(e) => updateProperty('width', e.target.value)}
-                        placeholder="auto, 100%, 20rem"
-                        className="h-8 text-xs"
+                        onChange={(value) => updateProperty('width', value)}
+                        placeholder="auto"
+                        allowAuto={true}
                       />
                     </div>
                     <div>
                       <Label className="text-xs">Altura</Label>
-                      <Input
+                      <UnitInput
                         value={component.height || ''}
-                        onChange={(e) => updateProperty('height', e.target.value)}
-                        placeholder="auto, 100%, 20rem"
-                        className="h-8 text-xs"
+                        onChange={(value) => updateProperty('height', value)}
+                        placeholder="auto"
+                        allowAuto={true}
                       />
                     </div>
                   </div>
@@ -126,20 +127,18 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Min Width</Label>
-                      <Input
+                      <UnitInput
                         value={component.minWidth || ''}
-                        onChange={(e) => updateProperty('minWidth', e.target.value)}
+                        onChange={(value) => updateProperty('minWidth', value)}
                         placeholder="0"
-                        className="h-8 text-xs"
                       />
                     </div>
                     <div>
                       <Label className="text-xs">Min Height</Label>
-                      <Input
+                      <UnitInput
                         value={component.minHeight || ''}
-                        onChange={(e) => updateProperty('minHeight', e.target.value)}
+                        onChange={(value) => updateProperty('minHeight', value)}
                         placeholder="0"
-                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
@@ -147,20 +146,20 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Max Width</Label>
-                      <Input
+                      <UnitInput
                         value={component.maxWidth || ''}
-                        onChange={(e) => updateProperty('maxWidth', e.target.value)}
+                        onChange={(value) => updateProperty('maxWidth', value)}
                         placeholder="none"
-                        className="h-8 text-xs"
+                        allowNone={true}
                       />
                     </div>
                     <div>
                       <Label className="text-xs">Max Height</Label>
-                      <Input
+                      <UnitInput
                         value={component.maxHeight || ''}
-                        onChange={(e) => updateProperty('maxHeight', e.target.value)}
+                        onChange={(value) => updateProperty('maxHeight', value)}
                         placeholder="none"
-                        className="h-8 text-xs"
+                        allowNone={true}
                       />
                     </div>
                   </div>
@@ -184,29 +183,25 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div>
                     <Label className="text-xs mb-2 block">Margin (em/rem/%/px)</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input
+                      <UnitInput
                         value={component.marginTop || '0'}
-                        onChange={(e) => updateProperty('marginTop', e.target.value)}
+                        onChange={(value) => updateProperty('marginTop', value)}
                         placeholder="Top"
-                        className="h-8 text-xs"
                       />
-                      <Input
+                      <UnitInput
                         value={component.marginRight || '0'}
-                        onChange={(e) => updateProperty('marginRight', e.target.value)}
+                        onChange={(value) => updateProperty('marginRight', value)}
                         placeholder="Right"
-                        className="h-8 text-xs"
                       />
-                      <Input
+                      <UnitInput
                         value={component.marginBottom || '0'}
-                        onChange={(e) => updateProperty('marginBottom', e.target.value)}
+                        onChange={(value) => updateProperty('marginBottom', value)}
                         placeholder="Bottom"
-                        className="h-8 text-xs"
                       />
-                      <Input
+                      <UnitInput
                         value={component.marginLeft || '0'}
-                        onChange={(e) => updateProperty('marginLeft', e.target.value)}
+                        onChange={(value) => updateProperty('marginLeft', value)}
                         placeholder="Left"
-                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
@@ -214,29 +209,25 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div>
                     <Label className="text-xs mb-2 block">Padding (em/rem/%/px)</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input
+                      <UnitInput
                         value={component.paddingTop || '0'}
-                        onChange={(e) => updateProperty('paddingTop', e.target.value)}
+                        onChange={(value) => updateProperty('paddingTop', value)}
                         placeholder="Top"
-                        className="h-8 text-xs"
                       />
-                      <Input
+                      <UnitInput
                         value={component.paddingRight || '0'}
-                        onChange={(e) => updateProperty('paddingRight', e.target.value)}
+                        onChange={(value) => updateProperty('paddingRight', value)}
                         placeholder="Right"
-                        className="h-8 text-xs"
                       />
-                      <Input
+                      <UnitInput
                         value={component.paddingBottom || '0'}
-                        onChange={(e) => updateProperty('paddingBottom', e.target.value)}
+                        onChange={(value) => updateProperty('paddingBottom', value)}
                         placeholder="Bottom"
-                        className="h-8 text-xs"
                       />
-                      <Input
+                      <UnitInput
                         value={component.paddingLeft || '0'}
-                        onChange={(e) => updateProperty('paddingLeft', e.target.value)}
+                        onChange={(value) => updateProperty('paddingLeft', value)}
                         placeholder="Left"
-                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
@@ -400,21 +391,19 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                 <AccordionContent className="space-y-3">
                   <div>
                     <Label className="text-xs">Border Radius (em/rem/%/px)</Label>
-                    <Input
+                    <UnitInput
                       value={component.borderRadius || '0'}
-                      onChange={(e) => updateProperty('borderRadius', e.target.value)}
+                      onChange={(value) => updateProperty('borderRadius', value)}
                       placeholder="0.5rem"
-                      className="h-8 text-xs"
                     />
                   </div>
 
                   <div>
                     <Label className="text-xs">Border Width</Label>
-                    <Input
+                    <UnitInput
                       value={component.borderWidth || '0'}
-                      onChange={(e) => updateProperty('borderWidth', e.target.value)}
+                      onChange={(value) => updateProperty('borderWidth', value)}
                       placeholder="1px"
-                      className="h-8 text-xs"
                     />
                   </div>
 
@@ -526,20 +515,18 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs">Translate X</Label>
-                      <Input
+                      <UnitInput
                         value={component.transform?.translateX || '0'}
-                        onChange={(e) => updateNestedProperty('transform', 'translateX', e.target.value)}
+                        onChange={(value) => updateNestedProperty('transform', 'translateX', value)}
                         placeholder="0px"
-                        className="h-8 text-xs"
                       />
                     </div>
                     <div>
                       <Label className="text-xs">Translate Y</Label>
-                      <Input
+                      <UnitInput
                         value={component.transform?.translateY || '0'}
-                        onChange={(e) => updateNestedProperty('transform', 'translateY', e.target.value)}
+                        onChange={(value) => updateNestedProperty('transform', 'translateY', value)}
                         placeholder="0px"
-                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
@@ -553,20 +540,18 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs">Offset X</Label>
-                      <Input
+                      <UnitInput
                         value={component.boxShadow?.offsetX || '0px'}
-                        onChange={(e) => updateNestedProperty('boxShadow', 'offsetX', e.target.value)}
+                        onChange={(value) => updateNestedProperty('boxShadow', 'offsetX', value)}
                         placeholder="0px"
-                        className="h-8 text-xs"
                       />
                     </div>
                     <div>
                       <Label className="text-xs">Offset Y</Label>
-                      <Input
+                      <UnitInput
                         value={component.boxShadow?.offsetY || '0px'}
-                        onChange={(e) => updateNestedProperty('boxShadow', 'offsetY', e.target.value)}
+                        onChange={(value) => updateNestedProperty('boxShadow', 'offsetY', value)}
                         placeholder="0px"
-                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
@@ -574,20 +559,18 @@ export function AdvancedPropertyEditor({ component, onChange }: AdvancedProperty
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs">Blur</Label>
-                      <Input
+                      <UnitInput
                         value={component.boxShadow?.blur || '0px'}
-                        onChange={(e) => updateNestedProperty('boxShadow', 'blur', e.target.value)}
+                        onChange={(value) => updateNestedProperty('boxShadow', 'blur', value)}
                         placeholder="10px"
-                        className="h-8 text-xs"
                       />
                     </div>
                     <div>
                       <Label className="text-xs">Spread</Label>
-                      <Input
+                      <UnitInput
                         value={component.boxShadow?.spread || '0px'}
-                        onChange={(e) => updateNestedProperty('boxShadow', 'spread', e.target.value)}
+                        onChange={(value) => updateNestedProperty('boxShadow', 'spread', value)}
                         placeholder="0px"
-                        className="h-8 text-xs"
                       />
                     </div>
                   </div>

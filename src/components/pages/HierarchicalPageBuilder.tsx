@@ -15,8 +15,23 @@ import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { 
-  Save, Undo, Redo, Eye, Code, Download, Upload, 
-  Trash2, Play, Grid3x3, Layers, FileJson, Settings, LayoutTemplate, Palette
+  Save, 
+  Plus, 
+  Eye, 
+  Undo, 
+  Redo, 
+  Download, 
+  Upload, 
+  Code, 
+  FileJson,
+  Settings,
+  Trash2,
+  FolderTree,
+  Layers,
+  Copy,
+  ExternalLink,
+  LayoutTemplate,
+  Palette
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
@@ -489,6 +504,57 @@ export function HierarchicalPageBuilder({
     setShowExportDialog(true);
   }, [nodes]);
   
+  // Preview em nova janela
+  const handleOpenPreviewInNewWindow = useCallback(() => {
+    const generateHTML = (node: HierarchicalNode): string => {
+      const tag = node.type === 'heading' ? (node.props?.tag || 'h2') : node.type;
+      const styleStr = node.styles ? ` style="${Object.entries(node.styles).map(([k, v]) => `${k}: ${v}`).join('; ')}"` : '';
+      const classStr = node.className ? ` class="${node.className}"` : '';
+      const propsStr = Object.entries(node.props || {})
+        .filter(([k]) => k !== 'tag' && k !== 'text' && k !== 'content')
+        .map(([k, v]) => ` ${k}="${v}"`)
+        .join('');
+      
+      const content = node.content || node.props?.content || node.props?.text || '';
+      const childrenHTML = node.children ? node.children.map(generateHTML).join('') : '';
+      
+      return `<${tag}${classStr}${styleStr}${propsStr}>${content}${childrenHTML}</${tag}>`;
+    };
+    
+    const bodyHTML = nodes.map(generateHTML).join('\n');
+    
+    const fullHTML = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview - Page Builder</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  ${bodyHTML}
+</body>
+</html>
+    `;
+    
+    const blob = new Blob([fullHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const newWindow = window.open(url, '_blank', 'width=1200,height=800');
+    
+    if (newWindow) {
+      newWindow.addEventListener('load', () => {
+        URL.revokeObjectURL(url);
+      });
+      toast.success('Preview aberto em nova janela');
+    } else {
+      toast.error('Não foi possível abrir nova janela. Verifique o bloqueador de pop-ups.');
+    }
+  }, [nodes]);
+  
   const handleImportJSON = useCallback(() => {
     try {
       const parsed = JSON.parse(importValue);
@@ -588,6 +654,14 @@ export function HierarchicalPageBuilder({
               title="Preview"
             >
               <Eye className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleOpenPreviewInNewWindow}
+              title="Abrir Preview em Nova Janela"
+            >
+              <ExternalLink className="w-4 h-4" />
             </Button>
             <Button
               size="sm"

@@ -62,6 +62,7 @@ interface Page {
   scheduledDate?: string;
   folder?: string; // Caminho da pasta (ex: "projetos/website")
   template?: string;
+  isHomePage?: boolean; // Nova propriedade para definir como página inicial
   meta?: {
     robots?: string;
     description?: string;
@@ -194,6 +195,7 @@ export function PageManager({ currentUser }: PageManagerProps) {
           excerpt: 'Página inicial do portal',
           status: 'published',
           template: 'default',
+          isHomePage: true, // Definir como página inicial
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
@@ -517,6 +519,22 @@ export function PageManager({ currentUser }: PageManagerProps) {
 
   const handleDelete = (page: Page) => {
     setDeleteDialog({ open: true, item: page, isFolder: false });
+  };
+
+  const handleSetAsHomePage = (page: Page) => {
+    // Remover isHomePage de todas as outras páginas
+    const updatedPages = pages.map(p => ({
+      ...p,
+      isHomePage: p.id === page.id ? !page.isHomePage : false
+    }));
+    
+    savePages(updatedPages);
+    
+    if (!page.isHomePage) {
+      toast.success(`"${page.title}" definida como Página Inicial!`);
+    } else {
+      toast.success(`"${page.title}" removida como Página Inicial`);
+    }
   };
 
   const handleDeleteFolder = (path: string) => {
@@ -877,6 +895,14 @@ export function PageManager({ currentUser }: PageManagerProps) {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => {
                               e.stopPropagation();
+                              if (item.page) handleSetAsHomePage(item.page);
+                            }}>
+                              <Home className="w-4 h-4 mr-2" />
+                              {item.page?.isHomePage ? 'Remover como Página Inicial' : 'Definir como Página Inicial'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
                               if (item.page) handleContextCopy(item.page);
                             }}>
                               <Copy className="w-4 h-4 mr-2" />
@@ -953,13 +979,21 @@ export function PageManager({ currentUser }: PageManagerProps) {
                     </Badge>
                     
                     {item.type === 'page' && item.page && (
-                      <Badge variant={
-                        item.page.status === 'published' ? 'default' :
-                        item.page.status === 'scheduled' ? 'secondary' : 'outline'
-                      }>
-                        {item.page.status === 'published' ? 'Publicada' :
-                         item.page.status === 'scheduled' ? 'Agendada' : 'Rascunho'}
-                      </Badge>
+                      <>
+                        {item.page.isHomePage && (
+                          <Badge variant="default" className="text-xs bg-blue-600">
+                            <Home className="w-3 h-3 mr-1" />
+                            Página Inicial
+                          </Badge>
+                        )}
+                        <Badge variant={
+                          item.page.status === 'published' ? 'default' :
+                          item.page.status === 'scheduled' ? 'secondary' : 'outline'
+                        }>
+                          {item.page.status === 'published' ? 'Publicada' :
+                           item.page.status === 'scheduled' ? 'Agendada' : 'Rascunho'}
+                        </Badge>
+                      </>
                     )}
                   </div>
 

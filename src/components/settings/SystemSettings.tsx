@@ -6,7 +6,7 @@ import { Textarea } from '../ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Switch } from '../ui/switch';
-import { Save, Code, Palette, Database, FileCode, Shield, Sparkles, Users, History, RefreshCw, Link as LinkIcon, Upload } from 'lucide-react';
+import { Save, Code, Palette, Database, FileCode, Shield, Sparkles, Users, History, RefreshCw, Link as LinkIcon, Upload, Globe } from 'lucide-react';
 import { PermissionsManager } from './PermissionsManager';
 import { AIProviderConfig } from '../ai/AIProviderConfig';
 import { usePermissions, withPermission } from '../auth/PermissionsContext';
@@ -16,6 +16,7 @@ import { UserManager } from '../users/UserManager';
 import { ContentSyncManager } from '../content/ContentSyncManager';
 import { LinkManager } from '../links/LinkManager';
 import { BatchImportManager } from '../batch-import/BatchImportManager';
+import { ExternalResourcesManager } from './ExternalResourcesManager';
 
 interface Settings {
   siteName: string;
@@ -217,6 +218,10 @@ export function SystemSettings({ currentUser }: SystemSettingsProps = {}) {
           <TabsTrigger value="batch-import">
             <Upload className="w-4 h-4 mr-2" />
             Importação em Lote
+          </TabsTrigger>
+          <TabsTrigger value="external-resources">
+            <Globe className="w-4 h-4 mr-2" />
+            Recursos Externos
           </TabsTrigger>
         </TabsList>
 
@@ -510,6 +515,11 @@ export function SystemSettings({ currentUser }: SystemSettingsProps = {}) {
         {/* Batch Import Manager */}
         <TabsContent value="batch-import">
           <BatchImportManager />
+        </TabsContent>
+
+        {/* External Resources Manager */}
+        <TabsContent value="external-resources">
+          <ExternalResourcesManager />
         </TabsContent>
       </Tabs>
     </div>

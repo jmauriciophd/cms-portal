@@ -44,7 +44,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder' | 'homepage' | 'multisites';
+type View = 'home' | 'pages' | 'files' | 'menu' | 'lists' | 'snippets' | 'templates' | 'settings' | 'trash' | 'customFields' | 'taxonomy' | 'search' | 'hierarchicalBuilder' | 'multisites';
 
 export function Dashboard({ currentUser, onLogout }: DashboardProps) {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -69,8 +69,7 @@ export function Dashboard({ currentUser, onLogout }: DashboardProps) {
       roles: ['admin', 'editor'],
       children: [
         { id: 'pages', icon: Layout, label: 'Páginas', roles: ['admin', 'editor'] },
-        { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] },
-        { id: 'homepage', icon: Home, label: 'Página Inicial', roles: ['admin', 'editor'] }
+        { id: 'templates', icon: Palette, label: 'Templates', roles: ['admin', 'editor'] }
       ]
     },
     { id: 'files', icon: Image, label: 'Arquivos', roles: ['admin', 'editor'] },

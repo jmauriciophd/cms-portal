@@ -745,9 +745,7 @@ export function MenuManager() {
         {hasFilhos && item.expanded && (
           <div className="space-y-2">
             {item.filhos!.map((filho, filhoIndex) => 
-              <div key={filho.id || `${path.join('-')}-${filhoIndex}`}>
-                {renderMenuItem(filho, [...path, filhoIndex], level + 1)}
-              </div>
+              renderMenuItem(filho, [...path, filhoIndex], level + 1)
             )}
           </div>
         )}

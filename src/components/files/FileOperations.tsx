@@ -74,6 +74,9 @@ export function CopyFileDialog({ file, allFiles, onComplete, onCancel }: FileOpe
       const updatedFiles = [...allFiles, copiedFile];
       localStorage.setItem('files', JSON.stringify(updatedFiles));
       
+      // Disparar evento para atualizar a UI
+      window.dispatchEvent(new Event('filesUpdated'));
+      
       toast.success(`${file.type === 'folder' ? 'Pasta' : 'Arquivo'} copiado com sucesso!`);
       setCopying(false);
       onComplete();
@@ -205,6 +208,9 @@ export function MoveFileDialog({ file, allFiles, onComplete, onCancel }: FileOpe
       const updatedFiles = allFiles.map(f => f.id === file.id ? movedFile : f);
       localStorage.setItem('files', JSON.stringify(updatedFiles));
       
+      // Disparar evento para atualizar a UI
+      window.dispatchEvent(new Event('filesUpdated'));
+      
       toast.success(`${file.type === 'folder' ? 'Pasta' : 'Arquivo'} movido com sucesso!`);
       setMoving(false);
       onComplete();
@@ -327,6 +333,9 @@ export function RenameFileDialog({ file, allFiles, onComplete, onCancel }: FileO
       const updatedFiles = allFiles.map(f => f.id === file.id ? renamedFile : f);
       localStorage.setItem('files', JSON.stringify(updatedFiles));
       
+      // Disparar evento para atualizar a UI
+      window.dispatchEvent(new Event('filesUpdated'));
+      
       toast.success(`${file.type === 'folder' ? 'Pasta' : 'Arquivo'} renomeado com sucesso!`);
       setRenaming(false);
       onComplete();
@@ -442,6 +451,11 @@ export function DeleteFileDialog({ file, allFiles, onComplete, onCancel }: FileO
       }
 
       localStorage.setItem('files', JSON.stringify(updatedFiles));
+      
+      // Disparar evento para atualizar a UI
+      window.dispatchEvent(new Event('filesUpdated'));
+      
+      toast.success(`${isFolder ? 'Pasta' : 'Arquivo'} movido para a lixeira com sucesso!`);
       
       setDeleting(false);
       onComplete();
